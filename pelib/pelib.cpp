@@ -1,6 +1,6 @@
 #include <windows.h>
-#include <pelib.hpp>
-#include <utils.hpp>
+#include <pelib/pelib.hpp>
+#include <pelib/utils.hpp>
 
 namespace pelib
 {
@@ -20,7 +20,7 @@ namespace pelib
     {
         DWORD numberOfBytesread = 0;
 
-        if (ReadFile(hFile, buffer, size, &numberOfBytesread, NULL) == 0)
+        if (ReadFile(hFile, buffer, (DWORD) size, &numberOfBytesread, NULL) == 0)
             return false;
 
         if (size != numberOfBytesread)
@@ -31,7 +31,7 @@ namespace pelib
 
     bool pefile::fetch_first_header_section(HANDLE hFile, size_t header_size, const size_t max_sections, IMAGE_SECTION_HEADER &section)
     {
-        SetFilePointer(hFile, header_size, NULL, FILE_BEGIN);   // set pointer on first section...
+        SetFilePointer(hFile, (LONG) header_size, NULL, FILE_BEGIN);   // set pointer on first section...
 
         memset(&section, 0, sizeof(IMAGE_SECTION_HEADER));
 

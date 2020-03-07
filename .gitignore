@@ -35,6 +35,8 @@
 .vs
 *.vcxproj*
 out
+Debug
+Release
 
 # CMake
 CMakeLists.txt.user
