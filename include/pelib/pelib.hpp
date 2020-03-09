@@ -37,6 +37,14 @@ namespace pelib
         bool load(const std::string &filename);
         bool save(const std::string &filename);
 
+
+        va_t    getImageBase();
+        void    setImageBase(va_t NewImageBase);
+
+        void    fill(BYTE pattern);
+        bool    memread(void* dst, va_t address, size_t size);
+        bool    memwrite(void* src, size_t size, va_t address);
+
     protected:
 
         bool load32bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS32 &pe_header);

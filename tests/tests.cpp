@@ -1,11 +1,23 @@
 // tests.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 
+#include <Windows.h>
 #include <iostream>
+#include <pelib/pelib.hpp>
 
-int main()
+int main(int argc, char *argv[])
 {
-    std::cout << "Hello World!\n";
+    pelib::peloader loader;
+
+    if (argc != 1)
+        loader.load(argv[1]);
+    else
+    {
+        // my pc..
+        loader.load("c:\\tools\\putty.exe");
+    }
+     
+    return 0;
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

@@ -13,7 +13,10 @@ namespace pelib
     /** default dtor... */
     peloader::~peloader()
     {
+        for (auto s : _sections)
+            delete s;
 
+        _sections.clear();  // remove all reference...
     }
     
     /** retrieve a block of data from stream... */
@@ -204,53 +207,152 @@ namespace pelib
         {   // point to right section on disk...
             SetFilePointer(hFile, pFirstSection->PointerToRawData, NULL, FILE_BEGIN);
 
-            if (pFirstSection->PointerToRawData != 0 && pFirstSection->SizeOfRawData > 0) 
-            {   // a region with valid data on disk...
-                DWORD dwNumberOfBytesRead = 0;
-                void* rawdata = malloc(pFirstSection->SizeOfRawData);
+            DWORD dwNumberOfBytesRead = 0;
+            void* rawdata = nullptr;
+                
+            if (pFirstSection->SizeOfRawData > 0)
+            {
+                rawdata = malloc(pFirstSection->SizeOfRawData);
                 ReadFile(hFile, rawdata, pFirstSection->SizeOfRawData, &dwNumberOfBytesRead, NULL);
                 if (dwNumberOfBytesRead == pFirstSection->SizeOfRawData)
                 {   // right...
-
                 }
+            }
 
-                _sections.push_back(new pesection(pFirstSection, rawdata, dwNumberOfBytesRead));
+            _sections.push_back(new pesection(pFirstSection, (const char *) rawdata, dwNumberOfBytesRead));
+                
+            if (rawdata != nullptr)
                 free(rawdata);
-            }
-            else
-            {   // a region.. bss or packed region to be loaded only on memory!
-                _sections.push_back(new pesection(pFirstSection, nullptr, 0));
-            }
         }
         return true;
     }
-};
 
-/** */
-bool peloader::write_sections(HANDLE hFile, WORD NumberOfSections, PIMAGE_SECTION_HEADER pFirstSection)
-{
-    //for (WORD n = 0; n < NumberOfSections; n++, pFirstSection++)
-    //{   // point to right section on disk...
-    //    SetFilePointer(hFile, pFirstSection->PointerToRawData, NULL, FILE_BEGIN);
+    /** */
+    bool peloader::write_sections(HANDLE hFile, WORD NumberOfSections, PIMAGE_SECTION_HEADER pFirstSection)
+    {
+        //for (WORD n = 0; n < NumberOfSections; n++, pFirstSection++)
+        //{   // point to right section on disk...
+        //    SetFilePointer(hFile, pFirstSection->PointerToRawData, NULL, FILE_BEGIN);
 
-    //    if (pFirstSection->PointerToRawData != 0 && pFirstSection->SizeOfRawData > 0)
-    //    {   // a region with valid data on disk...
-    //        DWORD dwNumberOfBytesRead = 0;
-    //        void* rawdata = malloc(pFirstSection->SizeOfRawData);
-    //        ReadFile(hFile, rawdata, pFirstSection->SizeOfRawData, &dwNumberOfBytesRead, NULL);
-    //        if (dwNumberOfBytesRead == pFirstSection->SizeOfRawData)
-    //        {   // right...
+        //    if (pFirstSection->PointerToRawData != 0 && pFirstSection->SizeOfRawData > 0)
+        //    {   // a region with valid data on disk...
+        //        DWORD dwNumberOfBytesRead = 0;
+        //        void* rawdata = malloc(pFirstSection->SizeOfRawData);
+        //        ReadFile(hFile, rawdata, pFirstSection->SizeOfRawData, &dwNumberOfBytesRead, NULL);
+        //        if (dwNumberOfBytesRead == pFirstSection->SizeOfRawData)
+        //        {   // right...
 
-    //        }
+        //        }
 
-    //        _sections.push_back(new pesection(pFirstSection, rawdata, dwNumberOfBytesRead));
-    //        free(rawdata);
-    //    }
-    //    else
-    //    {   // a region.. bss or packed region to be loaded only on memory!
-    //        _sections.push_back(new pesection(pFirstSection, nullptr, 0));
-    //    }
-    //}
-    return true;
-}
+        //        _sections.push_back(new pesection(pFirstSection, rawdata, dwNumberOfBytesRead));
+        //        free(rawdata);
+        //    }
+        //    else
+        //    {   // a region.. bss or packed region to be loaded only on memory!
+        //        _sections.push_back(new pesection(pFirstSection, nullptr, 0));
+        //    }
+        //}
+        return true;
+    }
+
+    /** ImageBase */
+    va_t peloader::getImageBase()
+    {
+        if (pNtHeader64 != nullptr)
+            return pNtHeader64->OptionalHeader.ImageBase;
+
+        return pNtHeader->OptionalHeader.ImageBase;
+    }
+
+    void peloader::setImageBase(va_t NewImageBase)
+    {
+        const va_t ImageBase = getImageBase();
+
+        if (ImageBase == NewImageBase) // nothing to do...
+            return;
+        
+
+        // forward update...
+
+        // final step.. update NT_HEADER
+        if (pNtHeader64 != nullptr)
+        {
+            pNtHeader64->OptionalHeader.ImageBase = NewImageBase;
+        }
+        else
+        {
+            pNtHeader->OptionalHeader.ImageBase = NewImageBase;
+        }
+
+    }
+
+    void peloader::fill(BYTE pattern)
+    {
+        for (auto s : _sections)
+            s->fill(pattern);
+    }
+
+    bool peloader::memread(void* dst, va_t address, size_t size)
+    {
+        char* cdst = (char *)dst;
+
+        for (auto s : _sections)
+        {
+            va_t start = s->VirtualAddress();
+            va_t end = s->VirtualEndAddress();
+
+            if (end < address)
+            {   // wrong section..
+                continue;
+            }
+
+            size_t available = end - address;
+
+            if (available > size)
+                available = size;
+
+            s->memread(cdst, address, available);
+            size -= available;
+
+            cdst += available;
+
+            if (size == 0)
+                break;
+        }
+
+        return true;
+    }
+
+    bool peloader::memwrite(void* src, size_t size, va_t address)
+    {
+        char* csrc = (char*)src;
+
+        for (auto s : _sections)
+        {
+            va_t start = s->VirtualAddress();
+            va_t end = s->VirtualEndAddress();
+
+            if (end < address)
+            {   // wrong section..
+                continue;
+            }
+
+            size_t available = end - address;
+
+            if (available > size)
+                available = size;
+
+            s->memwrite(csrc, available, address);
+            size -= available;
+
+            csrc += available;
+            address += available;
+
+            if (size == 0)
+                break;
+        }
+
+        return true;
+    }
+
 };

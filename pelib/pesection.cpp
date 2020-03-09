@@ -27,8 +27,8 @@ namespace pelib
 
         if (pHeader->SizeOfRawData != 0)
         {
-            size_t block_len = pHeader->Misc.VirtualSize;
-
+            size_t block_len = max(pHeader->Misc.VirtualSize, pHeader->SizeOfRawData);
+            
             _data = new char[block_len];
             memset(_data, 0, block_len);    // fill with 00 all memory allocated...
             memcpy(_data, data, size);      // transfer data into allocated block
