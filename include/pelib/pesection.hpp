@@ -1,14 +1,16 @@
 #pragma once
 
-#include <pelib/pelib.hpp>
 
 namespace pelib
 {
+    class peloader;
 
     /** a generic wrapper of section... */
     class pesection
     {
     public:
+        friend class peloader; // pelib can be manipulate directly this object!
+
         ~pesection();
 
         inline size_t VirtualSize() const { return header.Misc.VirtualSize; };
@@ -18,11 +20,13 @@ namespace pelib
         inline va_t VirtualEndAddress() const { return _VirtualAddress + _VirtualSize; };
 
         void    fill(BYTE pattern);
-        bool    memcpy(void *dst, va_t address, size_t size);
+        bool    memread(void *dst, va_t address, size_t size);
         bool    memwrite(void *src, size_t size, va_t address);
 
     protected:
         pesection();    // default constructor not allowed
+
+        pesection(const PIMAGE_SECTION_HEADER pHeader, const char* data, const size_t size);
 
     private:
         IMAGE_SECTION_HEADER header;

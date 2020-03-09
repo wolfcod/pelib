@@ -23,14 +23,16 @@ typedef unsigned int    size_t;
 
 namespace pelib
 {
-    class pefile
+    class pesection;
+
+    class peloader
     {
        public:
         /** default constructor... */
-        pefile();
+           peloader();
 
         /** destructor... */
-        ~pefile();
+        ~peloader();
 
         bool load(const std::string &filename);
         bool save(const std::string &filename);
@@ -44,10 +46,19 @@ namespace pelib
 
         bool fetch_data(HANDLE hFile, void *buffer, size_t size);
         
+        // sections management...
+        bool load_sections(HANDLE hFile, WORD NumberOfSections, PIMAGE_SECTION_HEADER pFirstSection);
+        bool write_sections(HANDLE hFile, WORD NumberOfSections, PIMAGE_SECTION_HEADER pFirstSection);
+
     private:
         char*   _dosstub;       // vector of "dos stub" and raw headers...
         size_t  _stubsize;      // stub size (dos + raw headers)
 
         PIMAGE_DOS_HEADER   pDosHeader; // an alias of "dos stub"
+        PIMAGE_NT_HEADERS32 pNtHeader;
+        PIMAGE_NT_HEADERS64 pNtHeader64;
+
+        std::list<pelib::pesection *> _sections; // a list of sections loaded..
+
     };
 }

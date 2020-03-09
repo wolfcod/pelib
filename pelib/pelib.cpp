@@ -1,22 +1,23 @@
 #include <windows.h>
 #include <pelib/pelib.hpp>
+#include <pelib/pesection.hpp>
 #include <pelib/utils.hpp>
 
 namespace pelib
 {
     /** default ctor... */
-    pefile::pefile()
+    peloader::peloader()
     {
 
     }
     /** default dtor... */
-    pefile::~pefile()
+    peloader::~peloader()
     {
 
     }
     
     /** retrieve a block of data from stream... */
-    bool pefile::fetch_data(HANDLE hFile, void *buffer, size_t size)
+    bool peloader::fetch_data(HANDLE hFile, void *buffer, size_t size)
     {
         DWORD numberOfBytesread = 0;
 
@@ -29,7 +30,7 @@ namespace pelib
         return true;
     }
 
-    bool pefile::fetch_first_header_section(HANDLE hFile, size_t header_size, const size_t max_sections, IMAGE_SECTION_HEADER &section)
+    bool peloader::fetch_first_header_section(HANDLE hFile, size_t header_size, const size_t max_sections, IMAGE_SECTION_HEADER &section)
     {
         SetFilePointer(hFile, (LONG) header_size, NULL, FILE_BEGIN);   // set pointer on first section...
 
@@ -46,7 +47,8 @@ namespace pelib
         return true;
     }
 
-    bool pefile::load32bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS32 &pe_header)
+
+    bool peloader::load32bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS32 &pe_header)
     {
             DWORD sizeHeader = dos_header.e_lfanew + 
                 pe_header.FileHeader.SizeOfOptionalHeader + 
@@ -69,25 +71,17 @@ namespace pelib
                 return false;
             }
 
-            BOOL bResult = ReadFile(hFile, _dosstub, (first_section.PointerToRawData != 0) ? first_section.PointerToRawData : 0x1000, &numberOfBytesread, NULL);
-
-                    if (bResult == FALSE)
-            {
-                DebugBreak();
-            }
+            if (ReadFile(hFile, _dosstub, (first_section.PointerToRawData != 0) ? first_section.PointerToRawData : 0x1000, &numberOfBytesread, NULL) == FALSE)
+                return false;
 
             // set pointer "DOS_HEADER" and "NT_HEADER" to our "alias"
-            pDosHeader = (PIMAGE_DOS_HEADER) _dosstub;
-            _lpNtHeader = CALC_OFFSET(PIMAGE_NT_HEADERS32, pDosHeader, pDosHeader->e_lfanew);
-            
-            struct _file_support *stream = get_by_image_format(_lpNtHeader->FileHeader.Machine);
+            pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(_dosstub);
+            pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS32>(_dosstub + pDosHeader->e_lfanew);
 
-            stream->read(this, hFile, &_sections);	// read from file
-
-
+            return true;
     }
 
-    bool pefile::load64bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS64 &pe_header)
+    bool peloader::load64bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS64 &pe_header)
     {
             DWORD sizeHeader = dos_header.e_lfanew + 
                 pe_header.FileHeader.SizeOfOptionalHeader + 
@@ -108,19 +102,17 @@ namespace pelib
 
             SetFilePointer(hFile, 0, NULL, SEEK_SET);
 
-            BOOL bResult = ReadFile(hFile, _dosstub, first_section.PointerToRawData, &numberOfBytesread, NULL);
+            if (ReadFile(hFile, _dosstub, (first_section.PointerToRawData != 0) ? first_section.PointerToRawData : 0x1000, &numberOfBytesread, NULL) == FALSE)
+                return false;
 
             // set pointer "DOS_HEADER" and "NT_HEADER" to our "alias"
-            pDosHeader = (PIMAGE_DOS_HEADER) _dosstub;
-            _lpNtHeader64 = CALC_OFFSET(PIMAGE_NT_HEADERS64, _lpDosHeader, _lpDosHeader->e_lfanew);
-
-            struct _file_support *stream = get_by_image_format(_lpNtHeader64->FileHeader.Machine);
-
-            stream->read(this, hFile, &_sections);	// read from file
-
+            pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(_dosstub);
+            pNtHeader64 = reinterpret_cast<PIMAGE_NT_HEADERS64>(_dosstub + pDosHeader->e_lfanew);
+    
+            return true;
     }
 
-    bool pefile::load(const std::string &filename)
+    bool peloader::load(const std::string &filename)
     {
         HANDLE hFile = CreateFileA(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 
@@ -151,18 +143,21 @@ namespace pelib
         if (ReadFile(hFile, &pe_header, sizeof(pe_header), &numberOfBytesread, NULL) == FALSE)
         {
             CloseHandle(hFile);
-            return NULL;
+            return false;
         }
 
         if (pe_header.Signature != IMAGE_NT_SIGNATURE)
         {
             CloseHandle(hFile);
-            return NULL;
+            return false;
         }
 
         if (pe_header.FileHeader.Machine == IMAGE_FILE_MACHINE_I386)
         {
-            load32bit(hFile, dos_header, pe_header);
+            if (load32bit(hFile, dos_header, pe_header))
+            {
+                load_sections(hFile, pe_header.FileHeader.NumberOfSections, IMAGE_FIRST_SECTION(pNtHeader));
+            }
         }
         else if (pe_header.FileHeader.Machine == IMAGE_FILE_MACHINE_AMD64)
         {
@@ -177,7 +172,11 @@ namespace pelib
                 return NULL;
             }
 
-            load64bit(hFile, dos_header, pe64_header);
+            if (load64bit(hFile, dos_header, pe64_header))
+            {
+                load_sections(hFile, pe64_header.FileHeader.NumberOfSections, IMAGE_FIRST_SECTION(pNtHeader64));
+            }
+
         }
         else
         {	// unsupported file machine
@@ -193,9 +192,65 @@ namespace pelib
         return true;
     }
 
-    bool pefile::save(const std::string &filename)
+    bool peloader::save(const std::string &filename)
     {
-
+        return false;
     }
 
+    /** */
+    bool peloader::load_sections(HANDLE hFile, WORD NumberOfSections, PIMAGE_SECTION_HEADER pFirstSection)
+    {
+        for (WORD n = 0; n < NumberOfSections; n++, pFirstSection++)
+        {   // point to right section on disk...
+            SetFilePointer(hFile, pFirstSection->PointerToRawData, NULL, FILE_BEGIN);
+
+            if (pFirstSection->PointerToRawData != 0 && pFirstSection->SizeOfRawData > 0) 
+            {   // a region with valid data on disk...
+                DWORD dwNumberOfBytesRead = 0;
+                void* rawdata = malloc(pFirstSection->SizeOfRawData);
+                ReadFile(hFile, rawdata, pFirstSection->SizeOfRawData, &dwNumberOfBytesRead, NULL);
+                if (dwNumberOfBytesRead == pFirstSection->SizeOfRawData)
+                {   // right...
+
+                }
+
+                _sections.push_back(new pesection(pFirstSection, rawdata, dwNumberOfBytesRead));
+                free(rawdata);
+            }
+            else
+            {   // a region.. bss or packed region to be loaded only on memory!
+                _sections.push_back(new pesection(pFirstSection, nullptr, 0));
+            }
+        }
+        return true;
+    }
+};
+
+/** */
+bool peloader::write_sections(HANDLE hFile, WORD NumberOfSections, PIMAGE_SECTION_HEADER pFirstSection)
+{
+    //for (WORD n = 0; n < NumberOfSections; n++, pFirstSection++)
+    //{   // point to right section on disk...
+    //    SetFilePointer(hFile, pFirstSection->PointerToRawData, NULL, FILE_BEGIN);
+
+    //    if (pFirstSection->PointerToRawData != 0 && pFirstSection->SizeOfRawData > 0)
+    //    {   // a region with valid data on disk...
+    //        DWORD dwNumberOfBytesRead = 0;
+    //        void* rawdata = malloc(pFirstSection->SizeOfRawData);
+    //        ReadFile(hFile, rawdata, pFirstSection->SizeOfRawData, &dwNumberOfBytesRead, NULL);
+    //        if (dwNumberOfBytesRead == pFirstSection->SizeOfRawData)
+    //        {   // right...
+
+    //        }
+
+    //        _sections.push_back(new pesection(pFirstSection, rawdata, dwNumberOfBytesRead));
+    //        free(rawdata);
+    //    }
+    //    else
+    //    {   // a region.. bss or packed region to be loaded only on memory!
+    //        _sections.push_back(new pesection(pFirstSection, nullptr, 0));
+    //    }
+    //}
+    return true;
+}
 };
