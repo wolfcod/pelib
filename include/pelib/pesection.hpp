@@ -23,10 +23,14 @@ namespace pelib
         bool    memread(void *dst, va_t address, size_t size);
         bool    memwrite(void *src, size_t size, va_t address);
 
+        bool    isExecutable() const { return (header.Characteristics & IMAGE_SCN_CNT_CODE) == IMAGE_SCN_CNT_CODE; };
+
     protected:
         pesection();    // default constructor not allowed
 
         pesection(const PIMAGE_SECTION_HEADER pHeader, const char* data, const size_t size);
+
+        void    setVirtualAddress(va_t va) { _VirtualAddress = va; header.VirtualAddress = va; };
 
     private:
         IMAGE_SECTION_HEADER header;

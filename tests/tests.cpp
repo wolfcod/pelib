@@ -17,6 +17,9 @@ int main(int argc, char *argv[])
         loader.load("c:\\tools\\putty.exe");
     }
      
+
+    loader.sort();
+
     return 0;
 }
 

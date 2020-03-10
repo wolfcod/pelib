@@ -25,6 +25,24 @@ namespace pelib
 {
     class pesection;
 
+    enum class DirectoryEntry {
+        EntryExport = IMAGE_DIRECTORY_ENTRY_EXPORT,
+        EntryImport = IMAGE_DIRECTORY_ENTRY_IMPORT,
+        EntryResource = IMAGE_DIRECTORY_ENTRY_RESOURCE,
+        EntryException = IMAGE_DIRECTORY_ENTRY_EXCEPTION,
+        EntrySecurity = IMAGE_DIRECTORY_ENTRY_SECURITY,
+        EntryBaseReloc = IMAGE_DIRECTORY_ENTRY_BASERELOC,
+        EntryDebug = IMAGE_DIRECTORY_ENTRY_DEBUG,
+        EntryArchitecture IMAGE_DIRECTORY_ENTRY_ARCHITECTURE,
+        EntryGlobalPtr = IMAGE_DIRECTORY_ENTRY_GLOBALPTR,
+        EntryTls = IMAGE_DIRECTORY_ENTRY_TLS,
+        EntryLoadConfig = IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG,
+        EntryBoundImport = IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT,
+        EntryIAT = IMAGE_DIRECTORY_ENTRY_IAT,
+        EntryDelayImport = IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT
+        EntryComDescriptor = IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR
+    };
+
     class peloader
     {
        public:
@@ -45,8 +63,18 @@ namespace pelib
         bool    memread(void* dst, va_t address, size_t size);
         bool    memwrite(void* src, size_t size, va_t address);
 
-    protected:
+        bool    sort();    // resort sections..
 
+    public:
+        bool getDataDirectory(DirectoryEntry entry, va_t& address, size_t& size);
+        bool setDataDirectory(DirectoryEntry entry, va_t address, size_t size);
+
+
+    public:
+        bool addSection(const std::string sectionName, size_t size);
+        bool addSection(const std::string sectionName, va_t va, size_t size);
+
+    protected:
         bool load32bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS32 &pe_header);
         bool load64bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS64 &pe_header);
 
@@ -57,6 +85,13 @@ namespace pelib
         // sections management...
         bool load_sections(HANDLE hFile, WORD NumberOfSections, PIMAGE_SECTION_HEADER pFirstSection);
         bool write_sections(HANDLE hFile, WORD NumberOfSections, PIMAGE_SECTION_HEADER pFirstSection);
+
+        bool update_nt_header();
+
+        size_t section_alignment();
+        size_t file_alignment();
+
+        va_t nextSectionAddress();  // return the first address available..
 
     private:
         char*   _dosstub;       // vector of "dos stub" and raw headers...

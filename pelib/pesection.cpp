@@ -31,7 +31,9 @@ namespace pelib
             
             _data = new char[block_len];
             memset(_data, 0, block_len);    // fill with 00 all memory allocated...
-            memcpy(_data, data, size);      // transfer data into allocated block
+
+            if (data != nullptr)    // can be null for new section...
+                memcpy(_data, data, size);      // transfer data into allocated block
         }
     }
 

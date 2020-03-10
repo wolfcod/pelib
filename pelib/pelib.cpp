@@ -1,7 +1,28 @@
 #include <windows.h>
+#include <algorithm>
+#include <string.h>
 #include <pelib/pelib.hpp>
 #include <pelib/pesection.hpp>
 #include <pelib/utils.hpp>
+
+bool operator < (const pelib::pesection& a, const pelib::pesection& b)
+{
+    OutputDebugString(L"operator <");
+    return (a.VirtualAddress() < b.VirtualAddress());
+}
+
+bool operator == (const pelib::pesection& a, const pelib::pesection& b)
+{
+    OutputDebugString(L"operator ==");
+    return (a.VirtualAddress() == b.VirtualAddress());
+}
+
+struct {
+    bool operator() (const pelib::pesection *a, const pelib::pesection *b)
+    {
+        return *a < *b;
+    }
+} SortSection;
 
 namespace pelib
 {
@@ -14,7 +35,7 @@ namespace pelib
     peloader::~peloader()
     {
         for (auto s : _sections)
-            delete s;
+           delete s;
 
         _sections.clear();  // remove all reference...
     }
@@ -110,6 +131,7 @@ namespace pelib
 
             // set pointer "DOS_HEADER" and "NT_HEADER" to our "alias"
             pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(_dosstub);
+            pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>(_dosstub + pDosHeader->e_lfanew);
             pNtHeader64 = reinterpret_cast<PIMAGE_NT_HEADERS64>(_dosstub + pDosHeader->e_lfanew);
     
             return true;
@@ -195,8 +217,62 @@ namespace pelib
         return true;
     }
 
+    bool peloader::update_nt_header()
+    {
+        pNtHeader->FileHeader.NumberOfSections = _sections.size();
+
+        DWORD dwSizeOfCode = 0;
+        DWORD dwSizeOfImage = 0;
+
+        const size_t vsAlignment = section_alignment();
+        const size_t fsAlignment = file_alignment();
+
+        DWORD PointerToRawData = 0; // this is the pointer to raw data...
+        
+        if (pNtHeader64 != nullptr)
+            PointerToRawData = pNtHeader64->OptionalHeader.FileAlignment;
+        else
+            PointerToRawData = pNtHeader->OptionalHeader.FileAlignment;
+
+        for (auto s : _sections)
+        {
+            dwSizeOfImage += roundup(s->VirtualSize(), vsAlignment);
+            if (s->isExecutable())
+                dwSizeOfCode += roundup(s->VirtualSize(), vsAlignment);
+
+            PointerToRawData += roundup(s->SizeOfRawData(), fsAlignment);
+        }
+
+        if (pNtHeader64 != nullptr) {
+            pNtHeader64->OptionalHeader.SizeOfCode = dwSizeOfCode;
+            pNtHeader64->OptionalHeader.SizeOfImage = dwSizeOfImage;
+        }
+        else {
+            pNtHeader->OptionalHeader.SizeOfCode = dwSizeOfCode;
+            pNtHeader->OptionalHeader.SizeOfImage = dwSizeOfImage;
+        }
+
+        return true;
+    }
+
     bool peloader::save(const std::string &filename)
     {
+        sort(); // resort section... 
+
+        // through pNtHeader we can write also "pNtHeader64"
+        pNtHeader->FileHeader.NumberOfSections = _sections.size();
+
+        // update size..
+
+    
+        if (pNtHeader64 != nullptr)
+        {   // 64 bit required..
+            
+        }
+        else
+        {
+
+        }
         return false;
     }
 
@@ -270,7 +346,6 @@ namespace pelib
 
         if (ImageBase == NewImageBase) // nothing to do...
             return;
-        
 
         // forward update...
 
@@ -281,7 +356,7 @@ namespace pelib
         }
         else
         {
-            pNtHeader->OptionalHeader.ImageBase = NewImageBase;
+            pNtHeader->OptionalHeader.ImageBase = (DWORD) NewImageBase;
         }
 
     }
@@ -355,4 +430,112 @@ namespace pelib
         return true;
     }
 
+    /** sort section in list.. */
+    bool peloader::sort()
+    {
+        _sections.sort(SortSection);
+
+        return true;
+    }
+
+    bool peloader::getDataDirectory(DirectoryEntry entry, va_t& address, size_t& size)
+    {
+        DWORD n = (DWORD)entry;
+
+        if (pNtHeader64 != nullptr) {
+            address = pNtHeader64->OptionalHeader.DataDirectory[n].VirtualAddress;
+            size = pNtHeader64->OptionalHeader.DataDirectory[n].Size;
+        }
+        else {
+            address = pNtHeader->OptionalHeader.DataDirectory[n].VirtualAddress;
+            size = pNtHeader->OptionalHeader.DataDirectory[n].Size;
+        }
+
+        if (address == 0 || size == 0)
+            return false;
+
+        return true;
+    }
+
+    bool peloader::setDataDirectory(DirectoryEntry entry, va_t address, size_t size)
+    {
+        DWORD n = (DWORD)entry;
+
+        if (pNtHeader64 != nullptr) {
+            pNtHeader64->OptionalHeader.DataDirectory[n].VirtualAddress = (DWORD) address;
+            pNtHeader64->OptionalHeader.DataDirectory[n].Size = (DWORD)size;
+        }
+        else {
+            pNtHeader->OptionalHeader.DataDirectory[n].VirtualAddress = (DWORD)address;
+            pNtHeader->OptionalHeader.DataDirectory[n].Size = (DWORD)size;
+        }
+
+        return true;
+    }
+
+    size_t peloader::section_alignment()
+    {
+        if (pNtHeader64 != nullptr)
+            return pNtHeader64->OptionalHeader.SectionAlignment;
+
+        return pNtHeader->OptionalHeader.SectionAlignment;
+    }
+
+    size_t peloader::file_alignment()
+    {
+        if (pNtHeader64 != nullptr)
+            return pNtHeader64->OptionalHeader.FileAlignment;
+
+        return pNtHeader->OptionalHeader.FileAlignment;
+    }
+
+    va_t peloader::nextSectionAddress()
+    {
+        va_t latest = 0;
+
+        for (auto s : _sections)
+            if (s->VirtualEndAddress() > latest)
+                latest = s->VirtualEndAddress();
+
+        return roundup(latest, section_alignment());
+    }
+
+    bool peloader::addSection(const std::string sectionName, size_t size)
+    {
+        IMAGE_SECTION_HEADER section = { 0 };
+
+        section.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+        strcpy_s((char *)section.Name, sizeof(section.Name), sectionName.c_str());
+        section.SizeOfRawData = roundup(size, this->file_alignment());
+        section.Misc.VirtualSize = size;
+        
+        _sections.push_back(new pesection(&section, nullptr, section.SizeOfRawData));
+
+        return true;
+    }
+
+    bool peloader::addSection(const std::string sectionName, va_t va, size_t size)
+    {
+        IMAGE_SECTION_HEADER section = { 0 };
+
+        section.Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE;
+        strcpy_s((char*)section.Name, sizeof(section.Name), sectionName.c_str());
+        section.SizeOfRawData = roundup(size, this->file_alignment());
+        section.Misc.VirtualSize = size;
+        section.VirtualAddress = va;
+
+        va_t delta = roundup(size, this->section_alignment);
+
+        // update header and status...
+        for (auto s : _sections)
+            if (s->VirtualAddress() >= va)
+                s->setVirtualAddress(s->VirtualAddress() + delta);
+
+        _sections.push_back(new pesection(&section, nullptr, section.SizeOfRawData));   // put the section inside...
+        sort();
+
+        // propagate address change..
+
+        return true;
+    }
 };
