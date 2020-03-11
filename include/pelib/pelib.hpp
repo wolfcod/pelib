@@ -33,13 +33,13 @@ namespace pelib
         EntrySecurity = IMAGE_DIRECTORY_ENTRY_SECURITY,
         EntryBaseReloc = IMAGE_DIRECTORY_ENTRY_BASERELOC,
         EntryDebug = IMAGE_DIRECTORY_ENTRY_DEBUG,
-        EntryArchitecture IMAGE_DIRECTORY_ENTRY_ARCHITECTURE,
+        EntryArchitecture = 7,  // IMAGE_DIRECTORY_ENTRY_ARCHITECTURE,
         EntryGlobalPtr = IMAGE_DIRECTORY_ENTRY_GLOBALPTR,
         EntryTls = IMAGE_DIRECTORY_ENTRY_TLS,
         EntryLoadConfig = IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG,
         EntryBoundImport = IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT,
         EntryIAT = IMAGE_DIRECTORY_ENTRY_IAT,
-        EntryDelayImport = IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT
+        EntryDelayImport = IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT,
         EntryComDescriptor = IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR
     };
 
@@ -70,9 +70,18 @@ namespace pelib
         bool setDataDirectory(DirectoryEntry entry, va_t address, size_t size);
 
 
-    public:
-        bool addSection(const std::string sectionName, size_t size);
-        bool addSection(const std::string sectionName, va_t va, size_t size);
+    public: /* section block...*/
+        pesection* addSection(const std::string sectionName, size_t size);
+        pesection* addSection(const std::string sectionName, va_t va, size_t size);
+
+        bool removeSection(const std::string sectionName);
+        bool removeSection(va_t va);
+
+        /** merge two or more section in single section with characteristics of first and data of all sections! */
+        pesection *mergeSection(pesection *first, pesection *last);
+
+
+        pesection* sectionByAddress(va_t va);
 
     protected:
         bool load32bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS32 &pe_header);

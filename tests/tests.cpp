@@ -20,6 +20,7 @@ int main(int argc, char *argv[])
 
     loader.sort();
 
+    loader.removeSection(std::string(".text"));
     return 0;
 }
 

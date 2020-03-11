@@ -131,7 +131,7 @@ namespace pelib
 
             // set pointer "DOS_HEADER" and "NT_HEADER" to our "alias"
             pDosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(_dosstub);
-            pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>(_dosstub + pDosHeader->e_lfanew);
+            pNtHeader = reinterpret_cast<PIMAGE_NT_HEADERS32>(_dosstub + pDosHeader->e_lfanew);
             pNtHeader64 = reinterpret_cast<PIMAGE_NT_HEADERS64>(_dosstub + pDosHeader->e_lfanew);
     
             return true;
@@ -489,6 +489,7 @@ namespace pelib
         return pNtHeader->OptionalHeader.FileAlignment;
     }
 
+    /** find the highest address allocated by section.. must be _sections[count()-1] but choose to lookup inside list */
     va_t peloader::nextSectionAddress()
     {
         va_t latest = 0;
@@ -500,7 +501,17 @@ namespace pelib
         return roundup(latest, section_alignment());
     }
 
-    bool peloader::addSection(const std::string sectionName, size_t size)
+    /** return the right section accessible via va */
+    pesection* peloader::sectionByAddress(va_t va)
+    {
+        for (auto s : _sections)
+            if (va_in_range(s->VirtualAddress(), s->VirtualEndAddress(), va))
+                return s;
+        return nullptr;
+    }
+
+    /** add a virtual section of N bytes at trail */
+    pesection* peloader::addSection(const std::string sectionName, size_t size)
     {
         IMAGE_SECTION_HEADER section = { 0 };
 
@@ -508,13 +519,16 @@ namespace pelib
         strcpy_s((char *)section.Name, sizeof(section.Name), sectionName.c_str());
         section.SizeOfRawData = roundup(size, this->file_alignment());
         section.Misc.VirtualSize = size;
-        
-        _sections.push_back(new pesection(&section, nullptr, section.SizeOfRawData));
+        section.VirtualAddress = nextSectionAddress();
 
-        return true;
+        pesection* nsect = new pesection(&section, nullptr, section.SizeOfRawData);
+
+        _sections.push_back(nsect);
+
+        return nsect;
     }
 
-    bool peloader::addSection(const std::string sectionName, va_t va, size_t size)
+    pesection* peloader::addSection(const std::string sectionName, va_t va, size_t size)
     {
         IMAGE_SECTION_HEADER section = { 0 };
 
@@ -524,18 +538,68 @@ namespace pelib
         section.Misc.VirtualSize = size;
         section.VirtualAddress = va;
 
-        va_t delta = roundup(size, this->section_alignment);
+        va_t delta = roundup(size, this->section_alignment());
 
         // update header and status...
         for (auto s : _sections)
             if (s->VirtualAddress() >= va)
                 s->setVirtualAddress(s->VirtualAddress() + delta);
 
-        _sections.push_back(new pesection(&section, nullptr, section.SizeOfRawData));   // put the section inside...
+        pesection* nsect = new pesection(&section, nullptr, section.SizeOfRawData);
+
+        _sections.push_back(nsect);   // put the section inside...
+        _sections.push_back(nsect);   // put the section inside...
         sort();
 
         // propagate address change..
 
-        return true;
+        return nsect;
+    }
+
+    /** */
+    bool peloader::removeSection(va_t va)
+    {
+        pesection* remove = sectionByAddress(va);
+        
+        if (remove != nullptr)
+        {
+            va_t begin = remove->VirtualAddress();
+            va_t end = remove->VirtualEndAddress();
+            va_t delta = roundup(remove->VirtualSize(), this->section_alignment());
+
+            _sections.remove(remove);
+            delete remove;
+
+            // remove all elements with link to this section...
+
+            // update header and status...
+            for (auto s : _sections)
+                if (s->VirtualAddress() >= begin)
+                    s->setVirtualAddress(s->VirtualAddress() - delta);
+        }
+
+        return false;
+    }
+
+    bool peloader::removeSection(const std::string sectionName)
+    {
+        va_t address = 0;
+
+        for (auto s : _sections) {
+            size_t length = strlen((const char *)s->header.Name);
+            if (length > 8) length = 8;
+
+            if (memcmp(s->header.Name, sectionName.c_str(), length) == 0) {
+                address = s->VirtualAddress();
+                break;
+            }
+        }
+
+        if (address != 0) {
+            return removeSection(address);
+        }
+
+        return false;
+      
     }
 };
