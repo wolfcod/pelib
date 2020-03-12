@@ -24,6 +24,7 @@ typedef unsigned int    size_t;
 namespace pelib
 {
     class pesection;
+    class pereloc;
 
     enum class DirectoryEntry {
         EntryExport = IMAGE_DIRECTORY_ENTRY_EXPORT,
@@ -45,6 +46,8 @@ namespace pelib
 
     class peloader
     {
+        friend class pereloc;   // pereloc
+
        public:
         /** default constructor... */
            peloader();
@@ -101,6 +104,8 @@ namespace pelib
         size_t file_alignment();
 
         va_t nextSectionAddress();  // return the first address available..
+
+        void* rawptr(va_t va);  // used internally;
 
     private:
         char*   _dosstub;       // vector of "dos stub" and raw headers...

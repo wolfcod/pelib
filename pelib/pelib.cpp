@@ -4,6 +4,7 @@
 #include <pelib/pelib.hpp>
 #include <pelib/pesection.hpp>
 #include <pelib/utils.hpp>
+#include <pelib/pereloc.hpp>
 
 bool operator < (const pelib::pesection& a, const pelib::pesection& b)
 {
@@ -347,7 +348,9 @@ namespace pelib
         if (ImageBase == NewImageBase) // nothing to do...
             return;
 
-        // forward update...
+        // update image base...
+        pereloc reloc(this);
+        reloc.setNewBaseAddress(NewImageBase);
 
         // final step.. update NT_HEADER
         if (pNtHeader64 != nullptr)
@@ -600,6 +603,66 @@ namespace pelib
         }
 
         return false;
-      
+    }
+
+    /** merge two section... */
+    pesection* peloader::mergeSection(pesection* first, pesection* last)
+    {
+        if (first == nullptr || last == nullptr)
+            return nullptr;
+
+        if (first == last)  // same section..
+            return nullptr;
+
+        if (first->VirtualAddress() > last->VirtualAddress()) { // swap pointer..
+            pesection* tmp = last;
+            last = first;
+            first = tmp;
+        }
+
+        IMAGE_SECTION_HEADER sectionHeader = { 0 };
+        memcpy(&sectionHeader, &first->header, sizeof(IMAGE_SECTION_HEADER));   // transfer data...
+
+        const size_t size_raw_1 = roundup(first->VirtualSize(), section_alignment());  // first section size must be "VirtualSize" + alignment..
+        const size_t size_raw_2 = last->SizeOfRawData();
+        const size_t new_raw_size = size_raw_1 + size_raw_2;
+
+        char* mergedData = (char*)malloc(new_raw_size);
+        
+        size_t mergedSize = roundup(first->VirtualSize(), section_alignment()) +
+            roundup(last->VirtualSize(), section_alignment());
+
+        memset(mergedData, 0, new_raw_size);
+        memcpy(mergedData, first->_data, first->_RawSize);  // copy first section..
+        memcpy(&mergedData[size_raw_1], last->_data, size_raw_2);
+
+        // header reflect new structure
+        sectionHeader.Misc.VirtualSize = mergedSize;
+        sectionHeader.SizeOfRawData = new_raw_size;
+
+        pesection* merged = new pesection(sectionHeader, mergedData, mergedSize);
+        
+        // [todo: replace element... ]
+        _sections.remove(first);
+        _sections.remove(last);
+        
+        delete first;   // destroy section...
+        delete last;
+        
+        _sections.push_back(merged);
+        sort(); // sort..
+
+        return merged;
+    }
+
+    /** return a pointer to manage directly data.. used for structure  and massive operations */
+    void* peloader::rawptr(va_t va)
+    {
+        pesection *s = sectionByAddress(va);
+
+        if (s == nullptr)
+            return nullptr;
+
+        return &s->_data[va - s->_VirtualAddress];
     }
 };

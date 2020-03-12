@@ -9,7 +9,7 @@ namespace pelib
     class pesection
     {
     public:
-        friend class peloader; // pelib can be manipulate directly this object!
+        friend class peloader; // pelib can be manipulate directly a pesection..
 
         ~pesection();
 
@@ -32,6 +32,8 @@ namespace pelib
         pesection(const PIMAGE_SECTION_HEADER pHeader, const char* data, const size_t size);
 
         void    setVirtualAddress(va_t va) { _VirtualAddress = va; header.VirtualAddress = va; };
+
+        
 
     private:
         IMAGE_SECTION_HEADER header;
