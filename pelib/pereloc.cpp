@@ -289,5 +289,44 @@ namespace pelib
 
 	}
 
+	bool pereloc::removeRelocationEntry(va_t begin, va_t end)
+	{
+		va_t relocAddress = 0;
+		size_t relocSize = 0;
+
+		if (pe->getDataDirectory(DirectoryEntry::EntryBaseReloc, relocAddress, relocSize) == false)
+			return false;	// no reloc ? done!
+
+		pesection* relocsection = pe->sectionByAddress(relocAddress);
+
+		char* relocaddr = (char*)pe->rawptr(relocAddress);
+		char* relocendaddr = (char*)pe->rawptr(relocAddress + relocSize);
+
+		char* newReloc = (char*)malloc(relocSize);
+		size_t newRelocSize = 0;
+
+		PIMAGE_BASE_RELOCATION pBaseRelocation = reinterpret_cast<PIMAGE_BASE_RELOCATION>(relocaddr);
+		
+		while (pBaseRelocation->SizeOfBlock != 0)
+		{
+			if (va_in_range(begin, end, pBaseRelocation->VirtualAddress) == false) {
+				memcpy(newReloc + newRelocSize, pBaseRelocation, pBaseRelocation->SizeOfBlock);
+				newRelocSize += pBaseRelocation->SizeOfBlock;
+			}
+
+			relocaddr = relocaddr + pBaseRelocation->SizeOfBlock;
+			pBaseRelocation = reinterpret_cast<PIMAGE_BASE_RELOCATION>(relocaddr);
+		}
+
+		if (newRelocSize != relocSize) {
+			memset(relocaddr, 0, relocSize);	// remove all previous elements..
+			memcpy(relocaddr, newReloc, newRelocSize);
+			pe->setDataDirectory(DirectoryEntry::EntryBaseReloc, relocAddress, newRelocSize);
+		}
+
+		free(newReloc);
+		return true;
+
+	}
 
 };	// end of pelib namespace
