@@ -69,7 +69,6 @@ namespace pelib
 	/** return a pointer to specific RVA page element ... */
 	static PIMAGE_BASE_RELOCATION moveToPage(PIMAGE_BASE_RELOCATION pBaseRelocation, DWORD PageRVA)
 	{
-
 		while (pBaseRelocation->SizeOfBlock > 0) {
 			if (pBaseRelocation->VirtualAddress == PageRVA)
 				return pBaseRelocation;
@@ -146,7 +145,7 @@ namespace pelib
 		memset(buffer, 0, memory_required);
 
 		PIMAGE_BASE_RELOCATION pWrite = (PIMAGE_BASE_RELOCATION)buffer;
-		WORD* pRelocWriter = (WORD*)(buffer + sizeof(IMAGE_BASE_RELOCATION));
+		WORD* pRelocWriter = pointerToEntries(pWrite);
 
 		DWORD PageRVA = 0;
 		pWrite->SizeOfBlock = memory_required;
@@ -156,6 +155,7 @@ namespace pelib
 			*pRelocWriter++ = (e.type << 12) | (e.va & 0xfff);
 		}
 
+		pWrite->VirtualAddress = PageRVA;
 		space_required = memory_required;
 		return buffer;
 	}
