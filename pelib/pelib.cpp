@@ -5,6 +5,7 @@
 #include <pelib/pesection.hpp>
 #include <pelib/utils.hpp>
 #include <pelib/pereloc.hpp>
+#include <pelib/peresource.hpp>
 
 bool operator < (const pelib::pesection& a, const pelib::pesection& b)
 {
@@ -351,7 +352,9 @@ namespace pelib
         // update image base...
         pereloc reloc(this);
         reloc.setNewBaseAddress(NewImageBase);
-
+        peresource rsrc(this);
+        rsrc.setNewBaseAddress(NewImageBase);
+        
         // final step.. update NT_HEADER
         if (pNtHeader64 != nullptr)
         {

@@ -47,6 +47,7 @@ namespace pelib
     class peloader
     {
         friend class pereloc;   // pereloc
+        friend class peresource;
 
        public:
         /** default constructor... */
