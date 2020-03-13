@@ -31,7 +31,7 @@ namespace pelib
 	void pereloc::update_baseaddress(short type, va_t address, va_t oldBaseAddress, va_t newBaseAddress)
 	{
 		if (type == IMAGE_REL_BASED_HIGHLOW) {
-			DWORD* pData = (DWORD*)pe->rawptr(address);
+			DWORD* pData = pe->ptr<DWORD*>(address);
 			DWORD uNewValue = *pData - oldBaseAddress + newBaseAddress;
 			*pData = uNewValue;
 		}
@@ -81,6 +81,18 @@ namespace pelib
 		return pBaseRelocation;
 	}
 
+	static PIMAGE_BASE_RELOCATION nextRelocPage(PIMAGE_BASE_RELOCATION pBaseRelocation) {
+		char* p = (char*)pBaseRelocation;
+		return reinterpret_cast<PIMAGE_BASE_RELOCATION>(p + pBaseRelocation->SizeOfBlock);
+	}
+
+	WORD* pointerToEntries(PIMAGE_BASE_RELOCATION pImageBaseRelocation)
+	{
+		char* p = (char*)pImageBaseRelocation;
+
+		return (WORD*)(p + sizeof(IMAGE_BASE_RELOCATION));
+	}
+
 	static void ExpandRelocPage(PIMAGE_BASE_RELOCATION pBaseRelocation, va_t PageRVA, ENTRY_RELOC& outList)
 	{
 		char* relocaddr = (char*)pBaseRelocation;
@@ -89,7 +101,7 @@ namespace pelib
 			DWORD nEntries = (pBaseRelocation->SizeOfBlock - 8) / sizeof(WORD);	//SizeOfBlock contain 8 byte of IMAGE_BASE_RELOCATION
 
 			if (pBaseRelocation->VirtualAddress == PageRVA) {
-				WORD* pEntries = reinterpret_cast<WORD*>(relocaddr + 8);
+				WORD* pEntries = pointerToEntries(pBaseRelocation);
 
 				while (nEntries > 0) {
 					short type = (*pEntries & 0xf000) >> 12;
@@ -161,7 +173,7 @@ namespace pelib
 			}
 
 			relocaddr += pBaseRelocation->SizeOfBlock;	// move relocaddr to next block...
-			pBaseRelocation = reinterpret_cast<PIMAGE_BASE_RELOCATION>(relocaddr);	// and update pointer
+			pBaseRelocation = nextRelocPage(pBaseRelocation);
 		}
 		return;
 	}
@@ -294,6 +306,8 @@ namespace pelib
 		va_t relocAddress = 0;
 		size_t relocSize = 0;
 
+		begin = lowRVA(begin);
+		end = highRVA(end);
 		if (pe->getDataDirectory(DirectoryEntry::EntryBaseReloc, relocAddress, relocSize) == false)
 			return false;	// no reloc ? done!
 
@@ -314,8 +328,7 @@ namespace pelib
 				newRelocSize += pBaseRelocation->SizeOfBlock;
 			}
 
-			relocaddr = relocaddr + pBaseRelocation->SizeOfBlock;
-			pBaseRelocation = reinterpret_cast<PIMAGE_BASE_RELOCATION>(relocaddr);
+			pBaseRelocation = nextRelocPage(pBaseRelocation);
 		}
 
 		if (newRelocSize != relocSize) {
@@ -329,4 +342,75 @@ namespace pelib
 
 	}
 
+	void getEntry(WORD entry, PIMAGE_BASE_RELOCATION pBaseRelocation, short& type, va_t& va)
+	{
+		type = (entry & 0xf000) >> 12;
+		va = (entry & 0x0fff) + pBaseRelocation->VirtualAddress;
+	}
+
+	/** retrieve any value on this page and update eventually values involved.. */
+	void pereloc::processSectionEntry(va_t fromRVA, va_t toRVA, PIMAGE_BASE_RELOCATION pBaseRelocation)
+	{
+		WORD* pEntries = pointerToEntries(pBaseRelocation);
+
+		while (*pEntries != 0x00) {
+			short type = 0;
+			va_t addr = 0;
+
+			getEntry(*pEntries, pBaseRelocation, type, addr);
+			
+			pe->rawptr(addr);
+
+			if (type == IMAGE_REL_BASED_HIGHLOW) {
+				DWORD* pData = pe->ptr<DWORD*>(addr);
+				if (*pData < (fromRVA + pe->getImageBase())) {
+					// not interested...
+				}
+				else {
+					*pData += (toRVA - fromRVA);
+				}
+			}
+			else if (type == IMAGE_REL_BASED_DIR64) {
+				uint64_t* pData = (uint64_t*)pe->rawptr(addr);
+				if (*pData < (fromRVA + pe->getImageBase())) {
+					// not interested...
+				}
+				else {
+					*pData += (toRVA - fromRVA);
+				}
+			}
+
+
+			pEntries++;
+		}
+	}
+
+	/** */
+	bool pereloc::moveSection(va_t fromRVA, va_t toRVA)
+	{
+		va_t relocAddress = 0;
+		size_t relocSize = 0;
+
+		if (pe->getDataDirectory(DirectoryEntry::EntryBaseReloc, relocAddress, relocSize) == false)
+			return false;	// no reloc ? done!
+
+		char* relocaddr = (char*)pe->rawptr(relocAddress);
+		char* relocendaddr = (char*)pe->rawptr(relocAddress + relocSize);
+
+		// on first step.. all address will be changed
+		PIMAGE_BASE_RELOCATION pBaseRelocation = reinterpret_cast<PIMAGE_BASE_RELOCATION>(relocaddr);
+
+		va_t deltaRVA = toRVA - fromRVA;
+		while (pBaseRelocation->SizeOfBlock != 0)
+		{
+			processSectionEntry(fromRVA, toRVA, pBaseRelocation);
+			if (pBaseRelocation->VirtualAddress >= fromRVA)
+			{
+				pBaseRelocation += deltaRVA;
+			}
+			pBaseRelocation = nextRelocPage(pBaseRelocation);
+		}
+
+		return true;
+	}
 };	// end of pelib namespace

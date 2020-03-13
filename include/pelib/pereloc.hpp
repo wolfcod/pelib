@@ -24,11 +24,18 @@ namespace pelib
 			// remove a symbol from relocation entry
 			bool removeRelocationEntry(va_t va);
 
+			// 
+			bool removeRelocationEntry(va_t begin, va_t end);
 
+			// a section will be moved from X segment to Y segment..
+			bool moveSection(va_t fromRVA, va_t toRVA);
+
+			inline va_t lowRVA(va_t rva) { return rva & ~(0xfff); };
+			inline va_t highRVA(va_t rva) { return rva | 0xfff; };
 
 		protected:
 			void update_baseaddress(short type, va_t address, va_t oldBaseAddress, va_t newBaseAddress);
-		
+			void processSectionEntry(va_t fromRVA, va_t toRVA, PIMAGE_BASE_RELOCATION pBaseRelocation);
 
 		private:
 			peloader* pe;

@@ -220,7 +220,7 @@ namespace pelib
 
     bool peloader::update_nt_header()
     {
-        pNtHeader->FileHeader.NumberOfSections = _sections.size();
+        pNtHeader->FileHeader.NumberOfSections = (WORD) _sections.size();
 
         DWORD dwSizeOfCode = 0;
         DWORD dwSizeOfImage = 0;
@@ -237,11 +237,11 @@ namespace pelib
 
         for (auto s : _sections)
         {
-            dwSizeOfImage += roundup(s->VirtualSize(), vsAlignment);
+            dwSizeOfImage += (DWORD) roundup(s->VirtualSize(), vsAlignment);
             if (s->isExecutable())
-                dwSizeOfCode += roundup(s->VirtualSize(), vsAlignment);
+                dwSizeOfCode += (DWORD) roundup(s->VirtualSize(), vsAlignment);
 
-            PointerToRawData += roundup(s->SizeOfRawData(), fsAlignment);
+            PointerToRawData += (DWORD) roundup(s->SizeOfRawData(), fsAlignment);
         }
 
         if (pNtHeader64 != nullptr) {
@@ -522,7 +522,7 @@ namespace pelib
         strcpy_s((char *)section.Name, sizeof(section.Name), sectionName.c_str());
         section.SizeOfRawData = roundup(size, this->file_alignment());
         section.Misc.VirtualSize = size;
-        section.VirtualAddress = nextSectionAddress();
+        section.VirtualAddress = (DWORD) nextSectionAddress();
 
         pesection* nsect = new pesection(&section, nullptr, section.SizeOfRawData);
 
@@ -544,13 +544,21 @@ namespace pelib
         va_t delta = roundup(size, this->section_alignment());
 
         // update header and status...
+        bool moveSection = false;
+
         for (auto s : _sections)
-            if (s->VirtualAddress() >= va)
+            if (s->VirtualAddress() >= va) {
+                if (moveSection == false) { // this action must be 
+                    pereloc reloc(this);
+
+                    reloc.moveSection(s->VirtualAddress(), s->VirtualAddress() + delta);
+                    moveSection = true;
+                }
                 s->setVirtualAddress(s->VirtualAddress() + delta);
+            }
 
         pesection* nsect = new pesection(&section, nullptr, section.SizeOfRawData);
 
-        _sections.push_back(nsect);   // put the section inside...
         _sections.push_back(nsect);   // put the section inside...
         sort();
 
@@ -574,6 +582,9 @@ namespace pelib
             delete remove;
 
             // remove all elements with link to this section...
+            pereloc reloc(this);
+
+            reloc.removeRelocationEntry(begin, end);    // reflect change in relocation..
 
             // update header and status...
             for (auto s : _sections)
@@ -640,7 +651,7 @@ namespace pelib
         sectionHeader.Misc.VirtualSize = mergedSize;
         sectionHeader.SizeOfRawData = new_raw_size;
 
-        pesection* merged = new pesection(sectionHeader, mergedData, mergedSize);
+        pesection* merged = new pesection(&sectionHeader, mergedData, mergedSize);
         
         // [todo: replace element... ]
         _sections.remove(first);
@@ -664,5 +675,13 @@ namespace pelib
             return nullptr;
 
         return &s->_data[va - s->_VirtualAddress];
+    }
+
+    template<typename T> 
+    T peloader::ptr(va_t va)
+    {
+        void* p = rawptr(va);
+
+        return reinterpret_cast<T>(p);
     }
 };

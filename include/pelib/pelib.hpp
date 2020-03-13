@@ -106,6 +106,8 @@ namespace pelib
         va_t nextSectionAddress();  // return the first address available..
 
         void* rawptr(va_t va);  // used internally;
+        
+        template<typename T> T ptr(va_t va);
 
     private:
         char*   _dosstub;       // vector of "dos stub" and raw headers...
