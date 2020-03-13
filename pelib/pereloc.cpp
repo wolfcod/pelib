@@ -81,7 +81,26 @@ namespace pelib
 		return pBaseRelocation;
 	}
 
-	static PIMAGE_BASE_RELOCATION nextRelocPage(PIMAGE_BASE_RELOCATION pBaseRelocation) {
+	/** return a pointer to first IMAGE_BASE RELOCATION */
+	PIMAGE_BASE_RELOCATION pereloc::openRelocPage()
+	{
+		va_t relocAddress = 0;
+		size_t relocSize = 0;
+
+		if (pe->getDataDirectory(DirectoryEntry::EntryBaseReloc, relocAddress, relocSize) == false)
+			return nullptr;	// no reloc ? done!
+
+		char* relocaddr = (char*)pe->rawptr(relocAddress);
+
+		if (relocaddr == nullptr)
+			return nullptr;	// corrupted file?
+
+		return reinterpret_cast<PIMAGE_BASE_RELOCATION>(relocaddr);
+
+	}
+
+	/** return a pointer to the next IMAGE_BASE_RELOCATION */
+	PIMAGE_BASE_RELOCATION pereloc::nextRelocPage(PIMAGE_BASE_RELOCATION pBaseRelocation) {
 		char* p = (char*)pBaseRelocation;
 		return reinterpret_cast<PIMAGE_BASE_RELOCATION>(p + pBaseRelocation->SizeOfBlock);
 	}
@@ -146,33 +165,25 @@ namespace pelib
 	{
 		va_t oldBaseAddress = pe->getImageBase();
 
-		va_t relocAddress = 0;
-		size_t relocSize = 0;
+		PIMAGE_BASE_RELOCATION pBaseRelocation = openRelocPage();
 
-		if (pe->getDataDirectory(DirectoryEntry::EntryBaseReloc, relocAddress, relocSize) == false)
-			return;	// no reloc ? done!
-
-		char* relocaddr = (char*)pe->rawptr(relocAddress);
-
-		if (relocaddr == nullptr)
-			return;	// corrupted file?
-
-		PIMAGE_BASE_RELOCATION pBaseRelocation = reinterpret_cast<PIMAGE_BASE_RELOCATION>(relocaddr);
+		if (pBaseRelocation == nullptr)
+			return;
 
 		while (pBaseRelocation->SizeOfBlock > 0) {
 			DWORD nEntries = (pBaseRelocation->SizeOfBlock - 8) / sizeof(WORD);	//SizeOfBlock contain 8 byte of IMAGE_BASE_RELOCATION
 
-			WORD* pEntries = reinterpret_cast<WORD*>(relocaddr + 8);
+			WORD* pEntries = pointerToEntries(pBaseRelocation);
 
-			while (nEntries > 0) {
+			while (nEntries != 0) {
 				short type = (*pEntries & 0xf000) >> 12;
 				va_t address = (va_t)(*pEntries & 0x0fff) + pBaseRelocation->VirtualAddress;
 
 				update_baseaddress(type, address, oldBaseAddress, newBaseAddress);
 				nEntries--;
+				pEntries++;
 			}
 
-			relocaddr += pBaseRelocation->SizeOfBlock;	// move relocaddr to next block...
 			pBaseRelocation = nextRelocPage(pBaseRelocation);
 		}
 		return;

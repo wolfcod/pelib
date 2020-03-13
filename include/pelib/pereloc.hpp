@@ -38,6 +38,9 @@ namespace pelib
 			void processSectionEntry(va_t fromRVA, va_t toRVA, PIMAGE_BASE_RELOCATION pBaseRelocation);
 
 		private:
+			PIMAGE_BASE_RELOCATION openRelocPage();
+			PIMAGE_BASE_RELOCATION nextRelocPage(PIMAGE_BASE_RELOCATION pBaseRelocation);
+
 			peloader* pe;
 
 	};
