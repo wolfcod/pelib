@@ -73,6 +73,8 @@ namespace pelib
         bool getDataDirectory(DirectoryEntry entry, va_t& address, size_t& size);
         bool setDataDirectory(DirectoryEntry entry, va_t address, size_t size);
 
+        va_t getEntryPoint();
+        void setEntryPoint(va_t va);
 
     public: /* section block...*/
         pesection* addSection(const std::string sectionName, size_t size);
@@ -84,10 +86,13 @@ namespace pelib
         /** merge two or more section in single section with characteristics of first and data of all sections! */
         pesection *mergeSection(pesection *first, pesection *last);
 
-
         pesection* sectionByAddress(va_t va);
 
     protected:
+        void moveSections(va_t fromVirtualAddress, size_t delta);   // move all sections after "fromVirtualAddress"
+        void updateHeaders(va_t fromVirtualAddress, size_t delta);
+        void updateDataDirectory(va_t fromVirtualAddress, size_t delta);
+
         bool load32bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS32 &pe_header);
         bool load64bit(HANDLE hFile, const IMAGE_DOS_HEADER &dos_header, const IMAGE_NT_HEADERS64 &pe_header);
 

@@ -534,6 +534,79 @@ namespace pelib
         return nsect;
     }
 
+    /** adjust sections and data linked in relocations */
+    void peloader::moveSections(va_t fromVirtualAddress, size_t delta)
+    {
+        pereloc reloc(this);
+        reloc.moveSection(fromVirtualAddress, fromVirtualAddress + delta);
+
+        for (auto s : _sections)
+            if (s->VirtualAddress() >= fromVirtualAddress)
+                s->setVirtualAddress(s->VirtualAddress() + delta);
+    }
+
+    va_t peloader::getEntryPoint()
+    {
+        if (pNtHeader64 != nullptr)
+            return pNtHeader64->OptionalHeader.AddressOfEntryPoint;
+
+        return pNtHeader->OptionalHeader.AddressOfEntryPoint;
+    }
+
+    void peloader::setEntryPoint(va_t va)
+    {
+        if (pNtHeader64 != nullptr)
+            pNtHeader64->OptionalHeader.AddressOfEntryPoint = va;
+        else
+            pNtHeader->OptionalHeader.AddressOfEntryPoint = va;
+    }
+
+    void peloader::updateHeaders(va_t fromVirtualAddress, size_t delta)
+    {
+        va_t entrypoint = getEntryPoint();
+
+        if (entrypoint >= fromVirtualAddress)
+            setEntryPoint(entrypoint + delta);
+    }
+
+    void peloader::updateDataDirectory(va_t fromVirtualAddress, size_t delta)
+    {
+        DirectoryEntry dir[] = { DirectoryEntry::EntryExport, DirectoryEntry::EntryImport, DirectoryEntry::EntryResource, DirectoryEntry::EntryException, DirectoryEntry::EntrySecurity,
+            DirectoryEntry::EntryBaseReloc, DirectoryEntry::EntryDebug, DirectoryEntry::EntryArchitecture, DirectoryEntry::EntryGlobalPtr, DirectoryEntry::EntryTls,
+            DirectoryEntry::EntryLoadConfig, DirectoryEntry::EntryBoundImport, DirectoryEntry::EntryIAT, DirectoryEntry::EntryDelayImport, DirectoryEntry::EntryComDescriptor };
+
+        for (DirectoryEntry e : dir) {
+            va_t address = 0;
+            size_t size = 0;
+
+            if (getDataDirectory(e, address, size)) {
+                if (address >= fromVirtualAddress)
+                    switch (e) {
+                        case DirectoryEntry::EntryExport:   break;
+                        case DirectoryEntry::EntryImport:   break;
+                        case DirectoryEntry::EntryResource: break;
+                        case DirectoryEntry::EntryException: break;
+                        case DirectoryEntry::EntrySecurity: break;
+                        case DirectoryEntry::EntryBaseReloc: break;
+                        case DirectoryEntry::EntryDebug:    break;
+                        case DirectoryEntry::EntryArchitecture: break;
+                        case DirectoryEntry::EntryGlobalPtr: break;
+                        case DirectoryEntry::EntryTls: break;
+                        case DirectoryEntry::EntryLoadConfig: break;
+                        case DirectoryEntry::EntryBoundImport: break;
+                        case DirectoryEntry::EntryIAT: break;
+                        case DirectoryEntry::EntryDelayImport: break;
+                        case DirectoryEntry::EntryComDescriptor: break;
+                        default: break; // cannot exists!
+                    }
+
+                if (address >= fromVirtualAddress)
+                    setDataDirectory(e, address + delta, size);
+            }
+
+        }
+    }
+
     pesection* peloader::addSection(const std::string sectionName, va_t va, size_t size)
     {
         IMAGE_SECTION_HEADER section = { 0 };
@@ -546,19 +619,10 @@ namespace pelib
 
         va_t delta = roundup(size, this->section_alignment());
 
-        // update header and status...
-        bool moveSection = false;
-
-        for (auto s : _sections)
-            if (s->VirtualAddress() >= va) {
-                if (moveSection == false) { // this action must be 
-                    pereloc reloc(this);
-
-                    reloc.moveSection(s->VirtualAddress(), s->VirtualAddress() + delta);
-                    moveSection = true;
-                }
-                s->setVirtualAddress(s->VirtualAddress() + delta);
-            }
+        // update relocation before adding sections...
+        moveSections(va, delta);
+        updateHeaders(va, delta);
+        updateDataDirectory(va, delta);
 
         pesection* nsect = new pesection(&section, nullptr, section.SizeOfRawData);
 
