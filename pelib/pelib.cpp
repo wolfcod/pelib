@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <algorithm>
+#include <map>
 #include <string.h>
 #include <pelib/pelib.hpp>
 #include <pelib/pesection.hpp>
@@ -537,9 +538,6 @@ namespace pelib
     /** adjust sections and data linked in relocations */
     void peloader::moveSections(va_t fromVirtualAddress, size_t delta)
     {
-        pereloc reloc(this);
-        reloc.moveSection(fromVirtualAddress, fromVirtualAddress + delta);
-
         for (auto s : _sections)
             if (s->VirtualAddress() >= fromVirtualAddress)
                 s->setVirtualAddress(s->VirtualAddress() + delta);
@@ -569,39 +567,35 @@ namespace pelib
             setEntryPoint(entrypoint + delta);
     }
 
+    void peloader::onUpdateBaseReloc(va_t fromVirtualAddress, size_t delta)
+    {
+        pereloc reloc(this);
+        reloc.moveSection(fromVirtualAddress, fromVirtualAddress + delta);
+    }
+
     void peloader::updateDataDirectory(va_t fromVirtualAddress, size_t delta)
     {
-        DirectoryEntry dir[] = { DirectoryEntry::EntryExport, DirectoryEntry::EntryImport, DirectoryEntry::EntryResource, DirectoryEntry::EntryException, DirectoryEntry::EntrySecurity,
-            DirectoryEntry::EntryBaseReloc, DirectoryEntry::EntryDebug, DirectoryEntry::EntryArchitecture, DirectoryEntry::EntryGlobalPtr, DirectoryEntry::EntryTls,
-            DirectoryEntry::EntryLoadConfig, DirectoryEntry::EntryBoundImport, DirectoryEntry::EntryIAT, DirectoryEntry::EntryDelayImport, DirectoryEntry::EntryComDescriptor };
+        std::map<DirectoryEntry, void (peloader::*)(va_t, size_t)> callbacks;
 
-        for (DirectoryEntry e : dir) {
+        callbacks.insert({ DirectoryEntry::EntryBaseReloc, &peloader::onUpdateBaseReloc });
+
+        /*DirectoryEntry dir[] = { DirectoryEntry::EntryExport, DirectoryEntry::EntryImport, DirectoryEntry::EntryResource, DirectoryEntry::EntryException, DirectoryEntry::EntrySecurity,
+            DirectoryEntry::EntryBaseReloc, DirectoryEntry::EntryDebug, DirectoryEntry::EntryArchitecture, DirectoryEntry::EntryGlobalPtr, DirectoryEntry::EntryTls,
+            DirectoryEntry::EntryLoadConfig, DirectoryEntry::EntryBoundImport, DirectoryEntry::EntryIAT, DirectoryEntry::EntryDelayImport, DirectoryEntry::EntryComDescriptor };*/
+
+        for (auto e : callbacks) {
             va_t address = 0;
             size_t size = 0;
 
-            if (getDataDirectory(e, address, size)) {
-                if (address >= fromVirtualAddress)
-                    switch (e) {
-                        case DirectoryEntry::EntryExport:   break;
-                        case DirectoryEntry::EntryImport:   break;
-                        case DirectoryEntry::EntryResource: break;
-                        case DirectoryEntry::EntryException: break;
-                        case DirectoryEntry::EntrySecurity: break;
-                        case DirectoryEntry::EntryBaseReloc: break;
-                        case DirectoryEntry::EntryDebug:    break;
-                        case DirectoryEntry::EntryArchitecture: break;
-                        case DirectoryEntry::EntryGlobalPtr: break;
-                        case DirectoryEntry::EntryTls: break;
-                        case DirectoryEntry::EntryLoadConfig: break;
-                        case DirectoryEntry::EntryBoundImport: break;
-                        case DirectoryEntry::EntryIAT: break;
-                        case DirectoryEntry::EntryDelayImport: break;
-                        case DirectoryEntry::EntryComDescriptor: break;
-                        default: break; // cannot exists!
-                    }
+            if (getDataDirectory(e.first, address, size)) {
+                if (address >= fromVirtualAddress) {
+                    void (peloader:: * callback)(va_t, size_t);
+                    callback = e.second;
+                    (this->*callback)(fromVirtualAddress, delta);
+                }
 
                 if (address >= fromVirtualAddress)
-                    setDataDirectory(e, address + delta, size);
+                    setDataDirectory(e.first, address + delta, size);
             }
 
         }

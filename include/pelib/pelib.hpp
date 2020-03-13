@@ -116,6 +116,10 @@ namespace pelib
         template<typename T> T ptr(va_t va);
 
     private:
+        void onGenericUpdate(va_t fromVirtualAddress, size_t delta);
+
+        void onUpdateBaseReloc(va_t fromVirtualAddress, size_t delta);
+
         char*   _dosstub;       // vector of "dos stub" and raw headers...
         size_t  _stubsize;      // stub size (dos + raw headers)
 
