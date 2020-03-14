@@ -27,6 +27,7 @@ namespace pelib
     class pereloc;
     class peexport;
     class peimport;
+    class peloadconfig;
 
     enum class DirectoryEntry {
         EntryExport = IMAGE_DIRECTORY_ENTRY_EXPORT,
@@ -52,6 +53,7 @@ namespace pelib
         friend class peresource;
         friend class peexport;
         friend class peimport;
+        friend class peloadconfig;
 
        public:
         /** default constructor... */
@@ -72,6 +74,8 @@ namespace pelib
         bool    memwrite(void* src, size_t size, va_t address);
 
         bool    sort();    // resort sections..
+
+        inline bool    is64Bit() const { return pNtHeader64 != nullptr; };
 
     public:
         bool getDataDirectory(DirectoryEntry entry, va_t& address, size_t& size);
