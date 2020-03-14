@@ -7,6 +7,7 @@
 #include <pelib/utils.hpp>
 #include <pelib/pereloc.hpp>
 #include <pelib/peresource.hpp>
+#include <pelib/peexport.hpp>
 
 bool operator < (const pelib::pesection& a, const pelib::pesection& b)
 {
@@ -567,17 +568,36 @@ namespace pelib
             setEntryPoint(entrypoint + delta);
     }
 
-    void peloader::onUpdateBaseReloc(va_t fromVirtualAddress, size_t delta)
+    // 
+    void peloader::onUpdateExportDirectory(va_t fromVirtualAddress, size_t delta)
     {
-        pereloc reloc(this);
-        reloc.moveSection(fromVirtualAddress, fromVirtualAddress + delta);
+        peexport export_dir(this);
+
+        export_dir.moveSections(fromVirtualAddress, fromVirtualAddress + delta);
     }
 
+    void peloader::onUpdateImportDirectory(va_t fromVirtualAddress, size_t delta)
+    {
+
+    }
+
+    void peloader::onUpdateBaseReloc(va_t fromVirtualAddress, size_t delta)
+    {
+        //pereloc reloc(this);
+        //reloc.moveSection(fromVirtualAddress, fromVirtualAddress + delta);
+    }
+
+    /** this section must be updated not on virtual address but on raw address... */
+    void peloader::onUpdateDebugDirectory(va_t fromVirtualAddress, size_t delta)
+    {
+
+    }
     void peloader::updateDataDirectory(va_t fromVirtualAddress, size_t delta)
     {
         std::map<DirectoryEntry, void (peloader::*)(va_t, size_t)> callbacks;
 
         callbacks.insert({ DirectoryEntry::EntryBaseReloc, &peloader::onUpdateBaseReloc });
+        callbacks.insert({ DirectoryEntry::EntryDebug, &peloader::onUpdateDebugDirectory });
 
         /*DirectoryEntry dir[] = { DirectoryEntry::EntryExport, DirectoryEntry::EntryImport, DirectoryEntry::EntryResource, DirectoryEntry::EntryException, DirectoryEntry::EntrySecurity,
             DirectoryEntry::EntryBaseReloc, DirectoryEntry::EntryDebug, DirectoryEntry::EntryArchitecture, DirectoryEntry::EntryGlobalPtr, DirectoryEntry::EntryTls,

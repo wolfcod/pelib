@@ -16,3 +16,13 @@ bool va_in_range(va_t low, va_t high, va_t x)
 
     return false;
 }
+
+
+va_t adjustIfAbove(va_t value, va_t aboveValue, va_t delta)
+{
+    if (value < aboveValue)
+        return value;
+
+    value += delta;
+    return value;
+}

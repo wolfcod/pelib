@@ -25,6 +25,8 @@ namespace pelib
 {
     class pesection;
     class pereloc;
+    class peexport;
+    class peimport;
 
     enum class DirectoryEntry {
         EntryExport = IMAGE_DIRECTORY_ENTRY_EXPORT,
@@ -48,6 +50,8 @@ namespace pelib
     {
         friend class pereloc;   // pereloc
         friend class peresource;
+        friend class peexport;
+        friend class peimport;
 
        public:
         /** default constructor... */
@@ -117,6 +121,10 @@ namespace pelib
 
     private:
         void onGenericUpdate(va_t fromVirtualAddress, size_t delta);
+        
+        void onUpdateDebugDirectory(va_t fromVirtualAddress, size_t delta);
+        void onUpdateExportDirectory(va_t fromVirtualAddress, size_t delta);
+        void onUpdateImportDirectory(va_t fromVirtualAddress, size_t delta);
 
         void onUpdateBaseReloc(va_t fromVirtualAddress, size_t delta);
 
