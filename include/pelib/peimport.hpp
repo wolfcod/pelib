@@ -14,10 +14,14 @@ namespace pelib
 		void setNewBaseAddress(va_t newBaseAddress);
 		void moveSections(va_t fromVirtualAddress, va_t toVirtualAddress);
 
+		va_t getImportByName(const char* szLibName, const char* szFuncName);
+		va_t getImportByOrdinal(const char* szLibName, DWORD dwOrdinalName);
 	protected:
 
 
 	private:
+		bool getImportDescriptor(PIMAGE_IMPORT_DESCRIPTOR* ppImageImportDescriptor);
+
 		void fixArrayOfPointers(DWORD* ptr, size_t nElements, va_t fromVirtualAddress, va_t deltaRVA);
 		peloader* pe;
 

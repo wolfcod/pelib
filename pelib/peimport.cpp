@@ -26,6 +26,21 @@ namespace pelib
 			return;
 	}
 
+	bool peimport::getImportDescriptor(PIMAGE_IMPORT_DESCRIPTOR *ppImageImportDescriptor)
+	{
+		va_t importAddr = 0;
+		size_t importSize = 0;
+
+		*ppImageImportDescriptor = nullptr;
+
+		if (pe->getDataDirectory(DirectoryEntry::EntryImport, importAddr, importSize) == false)
+			return false;
+
+		*ppImageImportDescriptor = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(pe->rawptr(importAddr));
+
+		return true;
+	}
+
 	void peimport::fixArrayOfPointers(DWORD* ptr, size_t nElements, va_t fromVirtualAddress, va_t deltaRVA)
 	{
 		for (size_t i = 0; i < nElements; i++) {
@@ -41,10 +56,10 @@ namespace pelib
 		if (pe->getDataDirectory(DirectoryEntry::EntryImport, importAddr, importSize) == false)
 			return;	// no reloc ? done!
 
-		char* importaddr = (char*)pe->rawptr(importAddr);
-		char* importendaddr = (char*)pe->rawptr(importAddr + importSize);
-
-		PIMAGE_IMPORT_DESCRIPTOR pImportDir = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(importAddr);
+		PIMAGE_IMPORT_DESCRIPTOR pImportDir = nullptr;
+		
+		if (getImportDescriptor(&pImportDir) == false)
+			return;
 
 		va_t deltaRVA = toVirtualAddress - fromVirtualAddress;
 
@@ -74,5 +89,80 @@ namespace pelib
 		}
 
 		return;
+	}
+
+	/** return the va_t address of symbol for a specific lib/function */
+	va_t peimport::getImportByName(const char* szLibName, const char* szFuncName)
+	{
+		PIMAGE_IMPORT_DESCRIPTOR pImportDir = nullptr;
+		if (getImportDescriptor(&pImportDir) == false)
+			return;
+
+		while (pImportDir->Characteristics != 0) {
+			const char* szImportLibName = (const char*)pe->rawptr(pImportDir->Name);
+
+			if (strcmp(szImportLibName, szLibName) == 0) {
+				// must process inside this address, but an import may exists different times..
+				ULONG* pFirstThunk = (ULONG*)pe->rawptr(pImportDir->FirstThunk);
+				ULONG* pRvaName = (ULONG*)pe->rawptr(pImportDir->Characteristics);
+				
+				// inside pRvaName there is a list of objects..
+				while (*pRvaName != 0)
+				{
+					if ((*pRvaName & 0x80000000) == 0) { // import by name.. true
+
+						const char* szImportFuncName = (const char*)pe->rawptr(*pRvaName);
+
+						if (strcmp(szImportFuncName, szFuncName) == 0)
+							return (va_t) (*pFirstThunk);
+					}
+
+					pRvaName++;
+					pFirstThunk++;
+				}
+
+				
+			}
+			
+			pImportDir++;
+		}
+
+		return 0;
+	}
+
+	/** return the va_t address of symbol for a specific lib/function */
+	va_t peimport::getImportByOrdinal(const char* szLibName, DWORD dwOrdinalName)
+	{
+		PIMAGE_IMPORT_DESCRIPTOR pImportDir = nullptr;
+		if (getImportDescriptor(&pImportDir) == false)
+			return;
+
+		while (pImportDir->Characteristics != 0) {
+			const char* szImportLibName = (const char*)pe->rawptr(pImportDir->Name);
+
+			if (strcmp(szImportLibName, szLibName) == 0) {
+				// must process inside this address, but an import may exists different times..
+				ULONG* pFirstThunk = (ULONG*)pe->rawptr(pImportDir->FirstThunk);
+				ULONG* pRvaName = (ULONG*)pe->rawptr(pImportDir->Characteristics);
+
+				// inside pRvaName there is a list of objects..
+				while (*pRvaName != 0)
+				{
+					if ((*pRvaName & 0x80000000) != 0) { // import by name.. true
+						if ((dwOrdinalName & *pRvaName) == dwOrdinalName)
+							return (va_t)(*pFirstThunk);
+					}
+
+					pRvaName++;
+					pFirstThunk++;
+				}
+
+
+			}
+
+			pImportDir++;
+		}
+
+		return 0;
 	}
 }
