@@ -8,6 +8,7 @@
 #include <pelib/pereloc.hpp>
 #include <pelib/peresource.hpp>
 #include <pelib/peexport.hpp>
+#include <pelib/peimport.hpp>
 
 bool operator < (const pelib::pesection& a, const pelib::pesection& b)
 {
@@ -32,6 +33,7 @@ namespace pelib
 {
     /** default ctor... */
     peloader::peloader()
+        : _ImageBase(0)
     {
 
     }
@@ -338,10 +340,14 @@ namespace pelib
     /** ImageBase */
     va_t peloader::getImageBase()
     {
-        if (pNtHeader64 != nullptr)
-            return pNtHeader64->OptionalHeader.ImageBase;
-
-        return pNtHeader->OptionalHeader.ImageBase;
+        if (_ImageBase == 0) {
+            if (is64Bit())
+                _ImageBase = pNtHeader64->OptionalHeader.ImageBase;
+            else
+                _ImageBase = pNtHeader->OptionalHeader.ImageBase;
+        }
+        
+        return _ImageBase;
     }
 
     void peloader::setImageBase(va_t NewImageBase)
@@ -366,7 +372,9 @@ namespace pelib
         {
             pNtHeader->OptionalHeader.ImageBase = (DWORD) NewImageBase;
         }
-
+        
+        _ImageBase = 0; // 
+        getImageBase(); // refresh image base..
     }
 
     void peloader::fill(BYTE pattern)
@@ -578,7 +586,9 @@ namespace pelib
 
     void peloader::onUpdateImportDirectory(va_t fromVirtualAddress, size_t delta)
     {
+        peimport iat(this);
 
+        iat.moveSections(fromVirtualAddress, fromVirtualAddress + delta);
     }
 
     void peloader::onUpdateBaseReloc(va_t fromVirtualAddress, size_t delta)
@@ -764,5 +774,102 @@ namespace pelib
         void* p = rawptr(va);
 
         return reinterpret_cast<T>(p);
+    }
+
+    /** read/write in IDC stile */
+    bool peloader::readByte(uint8_t& dst, const va_t va)
+    {
+        return memread(&dst, va, sizeof(uint8_t));
+    }
+
+    bool peloader::readWord(uint16_t& dst, const va_t va)
+    {
+        return memread(&dst, va, sizeof(uint16_t));
+    }
+
+    bool peloader::readDword(uint32_t& dst, const va_t va)
+    {
+        return memread(&dst, va, sizeof(dst));
+    }
+
+    bool peloader::readQword(uint64_t& dst, const va_t va)
+    {
+        return memread(&dst, va, sizeof(dst));
+    }
+
+    void peloader::writeByte(const uint8_t src, const va_t va)
+    {
+        memwrite((void *) &src, sizeof(uint8_t), va);
+    }
+
+    void peloader::writeWord(const uint16_t src, const va_t va)
+    {
+        memwrite((void*)&src, sizeof(uint16_t), va);
+    }
+
+    void peloader::writeDword(const uint32_t src, const va_t va)
+    {
+        memwrite((void*)&src, sizeof(uint32_t), va);
+    }
+
+    void peloader::writeQword(const uint64_t src, const va_t va)
+    {
+        memwrite((void*)&src, sizeof(uint64_t), va);
+    }
+
+    /** xref return a list of va with contain a reference to another va */
+    size_t  peloader::xref(va_t va, std::list<va_t>& xrefs)
+    {
+        std::list<va_t> relocentries;
+
+        pereloc reloc(this);
+
+        reloc.relocs(relocentries);
+
+        const bool qw = is64Bit();
+        const va_t imageBase = getImageBase();
+
+        if ((va & imageBase) == 0) // add imageBase to avoid a subtraction for each element..
+            va += imageBase;
+
+        for (va_t x : relocentries) {
+            va_t value;
+
+            if (qw) {
+                uint64_t n = 0;
+                readQword(n, x);
+                value = n;
+            }
+            else {
+                uint32_t n = 0;
+                readDword(n, x);
+                value = (va_t) n;
+            }
+
+            if (value == va)
+                xrefs.push_back(value - imageBase);
+        }
+
+        return xrefs.size();
+    }
+
+    va_t peloader::minVa()
+    {
+        va_t r = 0;
+        
+        for (auto s : _sections)
+            if (s->VirtualAddress() < r || r == 0)
+                r = s->VirtualAddress();
+
+        return r;
+    }
+
+    va_t peloader::maxVa()
+    {
+        va_t r = 0;
+        
+        for (auto s : _sections)
+            if (s->VirtualEndAddress() > r || r == 0)
+                r = s->VirtualEndAddress();
     }
 };

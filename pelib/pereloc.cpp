@@ -369,8 +369,6 @@ namespace pelib
 			va_t addr = 0;
 
 			getEntry(*pEntries, pBaseRelocation, type, addr);
-			
-			pe->rawptr(addr);
 
 			if (type == IMAGE_REL_BASED_HIGHLOW) {
 				DWORD* pData = pe->ptr<DWORD*>(addr);
@@ -424,4 +422,36 @@ namespace pelib
 
 		return true;
 	}
+
+	void pereloc::relocs(std::list<va_t>& relocs, va_t begin, va_t end)
+	{
+		PIMAGE_BASE_RELOCATION pReloc = openRelocPage();
+
+		if (begin == 0)
+			begin = pe->minVa();
+
+		if (end == 0)
+			end = pe->maxVa();
+
+		while (pReloc != nullptr && pReloc->SizeOfBlock != 0)
+		{
+			if (pReloc->VirtualAddress >= begin && pReloc->VirtualAddress <= end) {	// interested to explore this range...
+				WORD* pEntries = pointerToEntries(pReloc);
+
+				while (*pEntries != 0) {
+					short type = 0;
+					va_t addr = 0;
+
+					getEntry(*pEntries, pReloc, type, addr);
+
+					relocs.push_back(addr);
+
+					pEntries++;
+				}
+			}
+
+			pReloc = nextRelocPage(pReloc);
+		}
+	}
+
 };	// end of pelib namespace

@@ -73,9 +73,21 @@ namespace pelib
         bool    memread(void* dst, va_t address, size_t size);
         bool    memwrite(void* src, size_t size, va_t address);
 
+        bool    readByte(uint8_t &dst, const va_t va);
+        bool    readWord(uint16_t& dst, const va_t va);
+        bool    readDword(uint32_t& dst, const va_t va);
+        bool    readQword(uint64_t& dst, const va_t va);
+
+        void    writeByte(const uint8_t src, const va_t va);
+        void    writeWord(const uint16_t src, const va_t va);
+        void    writeDword(const uint32_t src, const va_t va);
+        void    writeQword(const uint64_t src, const va_t va);
+
         bool    sort();    // resort sections..
 
         inline bool    is64Bit() const { return pNtHeader64 != nullptr; };
+
+        size_t  xref(va_t va, std::list<va_t> &xrefs);
 
     public:
         bool getDataDirectory(DirectoryEntry entry, va_t& address, size_t& size);
@@ -83,6 +95,9 @@ namespace pelib
 
         va_t getEntryPoint();
         void setEntryPoint(va_t va);
+
+        va_t minVa();
+        va_t maxVa();
 
     public: /* section block...*/
         pesection* addSection(const std::string sectionName, size_t size);
@@ -139,6 +154,7 @@ namespace pelib
         PIMAGE_NT_HEADERS32 pNtHeader;
         PIMAGE_NT_HEADERS64 pNtHeader64;
 
+        va_t    _ImageBase;     // store the image base
         std::list<pelib::pesection *> _sections; // a list of sections loaded..
 
     };

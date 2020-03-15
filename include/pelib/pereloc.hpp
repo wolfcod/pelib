@@ -33,6 +33,8 @@ namespace pelib
 			inline va_t lowRVA(va_t rva) { return rva & ~(0xfff); };
 			inline va_t highRVA(va_t rva) { return rva | 0xfff; };
 
+			void relocs(std::list<va_t>& relocs, va_t begin = 0, va_t end = 0);
+
 		protected:
 			void update_baseaddress(short type, va_t address, va_t oldBaseAddress, va_t newBaseAddress);
 			void processSectionEntry(va_t fromRVA, va_t toRVA, PIMAGE_BASE_RELOCATION pBaseRelocation);
