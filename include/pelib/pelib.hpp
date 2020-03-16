@@ -115,6 +115,8 @@ namespace pelib
 
         pesection* sectionByAddress(va_t va);
 
+        void* rawptr(va_t va);  // promoted as public.. too friend classes!
+
     protected:
         void moveSections(va_t fromVirtualAddress, size_t delta);   // move all sections after "fromVirtualAddress"
         void updateHeaders(va_t fromVirtualAddress, size_t delta);
@@ -138,8 +140,6 @@ namespace pelib
 
         va_t nextSectionAddress();  // return the first address available..
 
-        void* rawptr(va_t va);  // used internally;
-        
         template<typename T> T ptr(va_t va);
 
     private:

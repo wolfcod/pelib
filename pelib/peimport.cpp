@@ -1,5 +1,4 @@
 #include <windows.h>
-#include <delayimp.h>
 #include <pelib/pelib.hpp>
 #include <pelib/utils.hpp>
 #include <pelib/pesection.hpp>

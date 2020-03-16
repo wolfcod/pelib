@@ -423,6 +423,20 @@ namespace pelib
 		return true;
 	}
 
+	PIMAGE_BASE_RELOCATION pereloc::tailRelocPage()
+	{
+		va_t relocAddress = 0;
+		size_t relocSize = 0;
+
+		if (pe->getDataDirectory(DirectoryEntry::EntryBaseReloc, relocAddress, relocSize) == false)
+			return nullptr;	// no reloc ? done!
+
+		char* relocaddr = (char*)pe->rawptr(relocAddress);
+		char* relocendaddr = (char*)pe->rawptr(relocAddress + relocSize);
+
+		return (PIMAGE_BASE_RELOCATION)relocendaddr;
+	}
+
 	void pereloc::relocs(std::list<va_t>& relocs, va_t begin, va_t end)
 	{
 		PIMAGE_BASE_RELOCATION pReloc = openRelocPage();
@@ -453,5 +467,105 @@ namespace pelib
 			pReloc = nextRelocPage(pReloc);
 		}
 	}
+
+	reloc_it pereloc::begin()
+	{
+		return reloc_it(this);
+	}
+
+	reloc_it pereloc::end()
+	{
+		return reloc_it(this);
+	}
+
+	reloc_it::reloc_it(pereloc* r)
+		: _reloc(r), curr(nullptr)
+	{
+		fromAddress = 0;
+		toAddress = 0;
+		
+		//toAddress = r->tailRelocPage();
+
+		fetchVa();
+	}
+
+	/** used to declare the end.. on this version! */
+	reloc_it::reloc_it(pereloc* r, PIMAGE_BASE_RELOCATION from)
+		: _reloc(r), curr(from)
+	{
+		
+	}
+
+	reloc_it::reloc_it(pereloc* r, va_t fromAddress)
+		: _reloc(r), curr(nullptr)
+	{
+		this->fromAddress = fromAddress;
+		fetchVa();
+	}
+	
+	reloc_it::reloc_it(pereloc* r, va_t fromAddress, va_t toAddress)
+		:	_reloc(r), curr(nullptr)
+	{
+		this->fromAddress = fromAddress;
+		this->toAddress = toAddress;
+
+		fetchVa();
+	}
+	
+	void reloc_it::fetchVa()
+	{
+		if (curr == nullptr) {	// on first fetch.. set curr to base address..
+			curr = _reloc->openRelocPage();
+		}
+
+		if (fromAddress != 0) {
+			while (curr->VirtualAddress < fromAddress)
+				curr = _reloc->nextRelocPage(curr);
+		}
+
+		if (toAddress != 0) {
+			if (curr->VirtualAddress > toAddress) {
+				va = 0;
+				curr = _reloc->tailRelocPage();
+				return;
+			}
+		}
+
+		WORD nElements = (curr->SizeOfBlock - 8) / sizeof(WORD);
+		WORD* values = pointerToEntries(curr);
+
+		WORD n = values[pos++];
+		if (n != 0) {
+			va = curr->VirtualAddress + (n & 0xfff);
+		}
+		else {
+			pos = 0;
+			curr = _reloc->nextRelocPage(curr);
+			va = curr->VirtualAddress + (n & 0xfff);
+		}
+	
+
+	}
+
+	va_t& reloc_it::operator*()
+	{
+		return va;
+	}
+	
+	reloc_it& reloc_it::operator++()
+	{
+		fetchVa();
+
+		return *this;
+	}
+	
+	bool reloc_it::operator != (const reloc_it& i) const
+	{
+		if (curr != i.curr)
+			return true;
+
+		return false;
+	}
+
 
 };	// end of pelib namespace

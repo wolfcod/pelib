@@ -27,18 +27,16 @@ namespace pelib
 	}
 
 	template<typename T, typename S>
-	void SEH_fix(void* data, va_t fromVirtualAddress, va_t toVirtualAddress)
+	void SEH_fix(peloader *pe, void* data, va_t fromVirtualAddress, va_t toVirtualAddress)
 	{
 		T pImageLoadConfig = reinterpret_cast<T>(data);
 
 		if (pImageLoadConfig->SEHandlerTable != 0) {
 			// update SEHandlerTable
 
-			pImageLoadConfig->SEHandlerTable = adjustIfAbove(pImageLoadConfig->SEHandlerTable, fromVirtualAddress, toVirtualAddress - fromVirtualAddress);
-
 			S* SEHandlerTable = (S*)pe->rawptr(pImageLoadConfig->SEHandlerTable);
 
-			UINT SEHandlerCount = pImageLoadConfig->SEHandlerCount;
+			UINT SEHandlerCount = (UINT) pImageLoadConfig->SEHandlerCount;
 
 			while (SEHandlerCount > 0) {
 				*SEHandlerTable = adjustIfAbove(*SEHandlerTable, fromVirtualAddress, toVirtualAddress - fromVirtualAddress);
@@ -46,6 +44,10 @@ namespace pelib
 				SEHandlerTable++;
 				SEHandlerCount--;
 			}
+
+			pImageLoadConfig->SEHandlerTable = adjustIfAbove(pImageLoadConfig->SEHandlerTable, fromVirtualAddress, toVirtualAddress - fromVirtualAddress);
+
+			
 		}
 	}
 
@@ -58,10 +60,10 @@ namespace pelib
 			return;	// no reloc ? done!
 
 		if (pe->is64Bit()) {
-			SEH_fix<PIMAGE_LOAD_CONFIG_DIRECTORY64, ULONGLONG>(pe->rawptr(loadAddr), fromVirtualAddress, toVirtualAddress);
+			SEH_fix<PIMAGE_LOAD_CONFIG_DIRECTORY64, ULONGLONG>(pe, pe->rawptr(loadAddr), fromVirtualAddress, toVirtualAddress);
 		}
 		else {
-			SEH_fix<PIMAGE_LOAD_CONFIG_DIRECTORY32, ULONG>(pe->rawptr(loadAddr), fromVirtualAddress, toVirtualAddress);
+			SEH_fix<PIMAGE_LOAD_CONFIG_DIRECTORY32, ULONG>(pe, pe->rawptr(loadAddr), fromVirtualAddress, toVirtualAddress);
 		}
 		return;
 	}

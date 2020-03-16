@@ -795,9 +795,7 @@ namespace pelib
     template<typename T> 
     T peloader::ptr(va_t va)
     {
-        void* p = rawptr(va);
-
-        return reinterpret_cast<T>(p);
+        return reinterpret_cast<T>(rawptr(va));
     }
 
     /** read/write in IDC stile */
@@ -844,11 +842,7 @@ namespace pelib
     /** xref return a list of va with contain a reference to another va */
     size_t  peloader::xref(va_t va, std::list<va_t>& xrefs)
     {
-        std::list<va_t> relocentries;
-
         pereloc reloc(this);
-
-        reloc.relocs(relocentries);
 
         const bool qw = is64Bit();
         const va_t imageBase = getImageBase();
@@ -856,18 +850,18 @@ namespace pelib
         if ((va & imageBase) == 0) // add imageBase to avoid a subtraction for each element..
             va += imageBase;
 
-        for (va_t x : relocentries) {
-            va_t value;
+        for (auto it : reloc) {
+            va_t value = 0;
 
             if (qw) {
                 uint64_t n = 0;
-                readQword(n, x);
+                readQword(n, it);
                 value = n;
             }
             else {
                 uint32_t n = 0;
-                readDword(n, x);
-                value = (va_t) n;
+                readDword(n, it);
+                value = (va_t)n;
             }
 
             if (value == va)
@@ -895,5 +889,7 @@ namespace pelib
         for (auto s : _sections)
             if (s->VirtualEndAddress() > r || r == 0)
                 r = s->VirtualEndAddress();
+
+        return r;
     }
 };
