@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdint>
 #include <list>
+#include <map>
 
 #ifndef _WIN32
 typedef uint8_t     BYTE;
@@ -27,7 +28,9 @@ namespace pelib
     class pereloc;
     class peexport;
     class peimport;
+    class pedelayimport;
     class peloadconfig;
+    
 
     enum class DirectoryEntry {
         EntryExport = IMAGE_DIRECTORY_ENTRY_EXPORT,
@@ -54,6 +57,7 @@ namespace pelib
         friend class peexport;
         friend class peimport;
         friend class peloadconfig;
+        friend class pedelayimport;
 
        public:
         /** default constructor... */
@@ -139,13 +143,17 @@ namespace pelib
         template<typename T> T ptr(va_t va);
 
     private:
-        void onGenericUpdate(va_t fromVirtualAddress, size_t delta);
-        
+        void initializeCallbacks();
+  
         void onUpdateDebugDirectory(va_t fromVirtualAddress, size_t delta);
         void onUpdateExportDirectory(va_t fromVirtualAddress, size_t delta);
         void onUpdateImportDirectory(va_t fromVirtualAddress, size_t delta);
+        void onUpdateDelayImportDirectory(va_t fromVirtualAddress, size_t delta);
+        void onUpdateLoadConfigDirectory(va_t fromVirtualAddress, size_t delta);
 
         void onUpdateBaseReloc(va_t fromVirtualAddress, size_t delta);
+
+        std::map<DirectoryEntry, void (peloader::*)(va_t, size_t)> callbacks;
 
         char*   _dosstub;       // vector of "dos stub" and raw headers...
         size_t  _stubsize;      // stub size (dos + raw headers)

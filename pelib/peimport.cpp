@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <delayimp.h>
 #include <pelib/pelib.hpp>
 #include <pelib/utils.hpp>
 #include <pelib/pesection.hpp>
@@ -96,7 +97,7 @@ namespace pelib
 	{
 		PIMAGE_IMPORT_DESCRIPTOR pImportDir = nullptr;
 		if (getImportDescriptor(&pImportDir) == false)
-			return;
+			return (va_t) 0;
 
 		while (pImportDir->Characteristics != 0) {
 			const char* szImportLibName = (const char*)pe->rawptr(pImportDir->Name);
@@ -135,7 +136,7 @@ namespace pelib
 	{
 		PIMAGE_IMPORT_DESCRIPTOR pImportDir = nullptr;
 		if (getImportDescriptor(&pImportDir) == false)
-			return;
+			return (va_t) 0;
 
 		while (pImportDir->Characteristics != 0) {
 			const char* szImportLibName = (const char*)pe->rawptr(pImportDir->Name);
@@ -165,4 +166,69 @@ namespace pelib
 
 		return 0;
 	}
+
+	pedelayimport::pedelayimport(peloader* arg)
+		: pe(arg)
+	{
+
+	}
+
+	pedelayimport::~pedelayimport()
+	{
+
+	}
+
+	void pedelayimport::setNewBaseAddress(va_t newBaseAddress)
+	{
+		va_t address = 0;
+		size_t size;
+
+		if (pe->getDataDirectory(DirectoryEntry::EntryDelayImport, address, size) == 0) // no export directory...
+			return;
+	}
+
+	bool pedelayimport::getImportDescriptor(PImgDelayDescr* ppImageImportDescriptor)
+	{
+		va_t importAddr = 0;
+		size_t importSize = 0;
+
+		*ppImageImportDescriptor = nullptr;
+
+		if (pe->getDataDirectory(DirectoryEntry::EntryDelayImport, importAddr, importSize) == false)
+			return false;
+
+		*ppImageImportDescriptor = reinterpret_cast<PImgDelayDescr>(pe->rawptr(importAddr));
+
+		return true;
+	}
+
+	void pedelayimport::moveSections(va_t fromVirtualAddress, va_t toVirtualAddress)
+	{
+		va_t importAddr = 0;
+		size_t importSize = 0;
+
+		if (pe->getDataDirectory(DirectoryEntry::EntryDelayImport, importAddr, importSize) == false)
+			return;	// no reloc ? done!
+
+		PImgDelayDescr pImportDir = nullptr;
+
+		if (getImportDescriptor(&pImportDir) == false)
+			return;
+
+		va_t deltaRVA = toVirtualAddress - fromVirtualAddress;
+
+		while (pImportDir->grAttrs != 0) {
+			
+			pImportDir->rvaBoundIAT = adjustIfAbove(pImportDir->rvaBoundIAT, fromVirtualAddress, deltaRVA);
+			pImportDir->rvaDLLName = adjustIfAbove(pImportDir->rvaDLLName, fromVirtualAddress, deltaRVA);
+			pImportDir->rvaHmod = adjustIfAbove(pImportDir->rvaHmod, fromVirtualAddress, deltaRVA);
+			pImportDir->rvaINT = adjustIfAbove(pImportDir->rvaINT, fromVirtualAddress, deltaRVA);
+			pImportDir->rvaUnloadIAT = adjustIfAbove(pImportDir->rvaUnloadIAT, fromVirtualAddress, deltaRVA);
+
+			pImportDir++;
+		}
+
+		return;
+	}
+
 }

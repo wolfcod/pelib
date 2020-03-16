@@ -9,6 +9,7 @@
 #include <pelib/peresource.hpp>
 #include <pelib/peexport.hpp>
 #include <pelib/peimport.hpp>
+#include <pelib/peloadconfig.hpp>
 
 bool operator < (const pelib::pesection& a, const pelib::pesection& b)
 {
@@ -602,13 +603,36 @@ namespace pelib
     {
 
     }
+
+    /** this section must be updated not on virtual address but on raw address... */
+    void peloader::onUpdateDelayImportDirectory(va_t fromVirtualAddress, size_t delta)
+    {
+        pedelayimport iat(this);
+
+        iat.moveSections(fromVirtualAddress, fromVirtualAddress + delta);
+
+    }
+
+    void peloader::onUpdateLoadConfigDirectory(va_t fromVirtualAddress, size_t delta)
+    {
+        peloadconfig load(this);
+
+        load.moveSections(fromVirtualAddress, fromVirtualAddress + delta);
+
+    }
+    void peloader::initializeCallbacks()
+    {
+        if (callbacks.empty()) {
+            callbacks.insert({ DirectoryEntry::EntryBaseReloc, &peloader::onUpdateBaseReloc });
+            callbacks.insert({ DirectoryEntry::EntryDebug, &peloader::onUpdateDebugDirectory });
+            callbacks.insert({ DirectoryEntry::EntryImport, &peloader::onUpdateImportDirectory });
+            callbacks.insert({ DirectoryEntry::EntryExport, &peloader::onUpdateExportDirectory });
+            callbacks.insert({ DirectoryEntry::EntryDelayImport, &peloader::onUpdateDelayImportDirectory });
+        }
+    }
     void peloader::updateDataDirectory(va_t fromVirtualAddress, size_t delta)
     {
-        std::map<DirectoryEntry, void (peloader::*)(va_t, size_t)> callbacks;
-
-        callbacks.insert({ DirectoryEntry::EntryBaseReloc, &peloader::onUpdateBaseReloc });
-        callbacks.insert({ DirectoryEntry::EntryDebug, &peloader::onUpdateDebugDirectory });
-
+        
         /*DirectoryEntry dir[] = { DirectoryEntry::EntryExport, DirectoryEntry::EntryImport, DirectoryEntry::EntryResource, DirectoryEntry::EntryException, DirectoryEntry::EntrySecurity,
             DirectoryEntry::EntryBaseReloc, DirectoryEntry::EntryDebug, DirectoryEntry::EntryArchitecture, DirectoryEntry::EntryGlobalPtr, DirectoryEntry::EntryTls,
             DirectoryEntry::EntryLoadConfig, DirectoryEntry::EntryBoundImport, DirectoryEntry::EntryIAT, DirectoryEntry::EntryDelayImport, DirectoryEntry::EntryComDescriptor };*/
