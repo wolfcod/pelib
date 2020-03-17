@@ -5,7 +5,14 @@ cmake_minimum_required (VERSION 3.8)
 
 project ("pelib")
 
-# Add source to this project's executable.
-add_subdirectory(src)
+INCLUDE_DIRECTORIES(
+  include
+  ${CMAKE_SOURCE_DIR}/include
+  )
 
-# TODO: Add tests and install targets if needed.
+FILE(GLOB pelib_src ${CMAKE_SOURCE_DIR}/pelib/*.cpp)
+
+set(CMAKE_BINARY_DIR "/out")
+
+add_library(pelib STATIC ${pelib_src})
+

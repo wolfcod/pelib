@@ -4,10 +4,63 @@
 #include <Windows.h>
 #include <iostream>
 #include <pelib/pelib.hpp>
+#include <utility>
+
+class X
+{
+    int* n;
+
+    public:
+        X() { 
+            n = new int[100]; 
+            for (int i = 0; i < 100; i++)
+                n[i] = i;
+        };
+        
+        X(const X& other)
+        {
+            std::cout << "copy values by arg" << std::endl;
+
+            n = new int[100];
+            for (int i = 0; i < 100; i++)
+                n[i] = other.n[i];
+        }
+
+        X(const X&& other)
+        {
+            std::cout << "rvalue ref constructor..." << std::endl;
+            n = std::move(other.n);
+        }
+
+        ~X()
+        {
+            if (n != nullptr) {
+                std::cout << "Destroying data at " << std::hex << (n) << std::endl;
+                delete n;
+            }
+        }
+
+        void print()
+        {
+            std::cout << "Pointer to n " << std::hex << (n) << std::endl;
+        }
+
+        static X create()
+        {
+            X f;
+
+            f.print();
+
+            return f;
+        }
+};
+
+//int f() { return 0; };
+
 
 int main(int argc, char *argv[])
 {
-    pelib::peloader loader;
+    /*pelib::peloader loader;
 
     if (argc != 1)
         loader.load(argv[1]);
@@ -21,6 +74,13 @@ int main(int argc, char *argv[])
     loader.sort();
 
     loader.removeSection(std::string(".text"));
+    */
+
+    X f = X::create();
+
+    f.print();
+
+    X n = f;
 
     return 0;
 }

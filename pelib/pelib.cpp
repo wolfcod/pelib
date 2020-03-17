@@ -13,13 +13,11 @@
 
 bool operator < (const pelib::pesection& a, const pelib::pesection& b)
 {
-    OutputDebugString(L"operator <");
     return (a.VirtualAddress() < b.VirtualAddress());
 }
 
 bool operator == (const pelib::pesection& a, const pelib::pesection& b)
 {
-    OutputDebugString(L"operator ==");
     return (a.VirtualAddress() == b.VirtualAddress());
 }
 
