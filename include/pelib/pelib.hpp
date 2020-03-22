@@ -59,15 +59,15 @@ namespace pelib
         friend class peloadconfig;
         friend class pedelayimport;
 
-       public:
+    public:
         /** default constructor... */
-           peloader();
+        peloader();
 
         /** destructor... */
         ~peloader();
 
-        bool load(const std::string &filename);
-        bool save(const std::string &filename);
+        bool load(const std::string& filename);
+        bool save(const std::string& filename);
 
 
         va_t    getImageBase();
@@ -77,15 +77,37 @@ namespace pelib
         bool    memread(void* dst, va_t address, size_t size);
         bool    memwrite(void* src, size_t size, va_t address);
 
-        bool    readByte(uint8_t &dst, const va_t va);
-        bool    readWord(uint16_t& dst, const va_t va);
-        bool    readDword(uint32_t& dst, const va_t va);
-        bool    readQword(uint64_t& dst, const va_t va);
+        inline bool    readByte(uint8_t& dst, const va_t va) {
+            return read<uint8_t>(dst, va);
+        }
 
-        void    writeByte(const uint8_t src, const va_t va);
-        void    writeWord(const uint16_t src, const va_t va);
-        void    writeDword(const uint32_t src, const va_t va);
-        void    writeQword(const uint64_t src, const va_t va);
+        inline bool    readWord(uint16_t& dst, const va_t va) {
+            return read<uint16_t>(dst, va);
+        }
+
+        inline bool    readDword(uint32_t& dst, const va_t va) {
+            return read<uint32_t>(dst, va);
+        }
+
+        inline bool    readQword(uint64_t& dst, const va_t va) {
+            return read<uint64_t>(dst, va);
+        }
+
+        inline void    writeByte(const uint8_t src, const va_t va) {
+            write<uint8_t>(src, va);
+        }
+
+        inline void    writeWord(const uint16_t src, const va_t va) {
+            write<uint16_t>(src, va);
+        }
+
+        inline void    writeDword(const uint32_t src, const va_t va) {
+            write<uint32_t>(src, va);
+        }
+
+        inline void    writeQword(const uint64_t src, const va_t va) {
+            write<uint64_t>(src, va);
+        }
 
         bool    sort();    // resort sections..
 
@@ -118,6 +140,8 @@ namespace pelib
         void* rawptr(va_t va);  // promoted as public.. too friend classes!
 
     protected:
+        va_t xref_va(va_t va);
+
         void moveSections(va_t fromVirtualAddress, size_t delta);   // move all sections after "fromVirtualAddress"
         void updateHeaders(va_t fromVirtualAddress, size_t delta);
         void updateDataDirectory(va_t fromVirtualAddress, size_t delta);
@@ -143,6 +167,10 @@ namespace pelib
         template<typename T> T ptr(va_t va);
 
     private:
+        template<typename T> bool read(T& dst, const va_t va);
+        template<typename T> void write(const T src, const va_t va);
+        
+
         void initializeCallbacks();
   
         void onUpdateDebugDirectory(va_t fromVirtualAddress, size_t delta);

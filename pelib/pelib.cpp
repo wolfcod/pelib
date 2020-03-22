@@ -796,49 +796,43 @@ namespace pelib
         return reinterpret_cast<T>(rawptr(va));
     }
 
-    /** read/write in IDC stile */
-    bool peloader::readByte(uint8_t& dst, const va_t va)
+    /** used by read{byte,short,int,int64} */
+    template<typename T>
+    bool peloader::read(T& dst, const va_t va)
     {
-        return memread(&dst, va, sizeof(uint8_t));
+        return memread(&dst, va, sizeof(T));
     }
 
-    bool peloader::readWord(uint16_t& dst, const va_t va)
+    /** used by write{byte,short,int,int64} */
+    template<typename T>
+    void peloader::write(const T src, const va_t va)
     {
-        return memread(&dst, va, sizeof(uint16_t));
+        memwrite((void*)&src, sizeof(T), va);
     }
-
-    bool peloader::readDword(uint32_t& dst, const va_t va)
+    
+    va_t peloader::xref_va(va_t va)
     {
-        return memread(&dst, va, sizeof(dst));
-    }
+        uint32_t dw;
 
-    bool peloader::readQword(uint64_t& dst, const va_t va)
-    {
-        return memread(&dst, va, sizeof(dst));
-    }
+        if (is64Bit()) {
+            uint64_t qw;
 
-    void peloader::writeByte(const uint8_t src, const va_t va)
-    {
-        memwrite((void *) &src, sizeof(uint8_t), va);
-    }
+            readQword(qw, va);
+            return (va_t)qw;
+        }
+        else {
+            uint32_t dw;
 
-    void peloader::writeWord(const uint16_t src, const va_t va)
-    {
-        memwrite((void*)&src, sizeof(uint16_t), va);
-    }
+            readDword(dw, va);
 
-    void peloader::writeDword(const uint32_t src, const va_t va)
-    {
-        memwrite((void*)&src, sizeof(uint32_t), va);
-    }
+            return (va_t)dw;
+        }
 
-    void peloader::writeQword(const uint64_t src, const va_t va)
-    {
-        memwrite((void*)&src, sizeof(uint64_t), va);
+        return 0;
     }
 
     /** xref return a list of va with contain a reference to another va */
-    size_t  peloader::xref(va_t va, std::list<va_t>& xrefs)
+    size_t peloader::xref(va_t va, std::list<va_t>& xrefs)
     {
         pereloc reloc(this);
 
@@ -849,18 +843,7 @@ namespace pelib
             va += imageBase;
 
         for (auto it : reloc) {
-            va_t value = 0;
-
-            if (qw) {
-                uint64_t n = 0;
-                readQword(n, it);
-                value = n;
-            }
-            else {
-                uint32_t n = 0;
-                readDword(n, it);
-                value = (va_t)n;
-            }
+            va_t value = xref_va(it);
 
             if (value == va)
                 xrefs.push_back(value - imageBase);
