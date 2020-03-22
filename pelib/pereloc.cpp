@@ -1,6 +1,6 @@
 #include <windows.h>
 #include <list>
-#include <pelib/pelib.hpp>
+#include <pelib/peloader.hpp>
 #include <pelib/utils.hpp>
 #include <pelib/pesection.hpp>
 #include <pelib/pereloc.hpp>

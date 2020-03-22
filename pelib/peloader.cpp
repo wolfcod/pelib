@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <map>
 #include <string.h>
-#include <pelib/pelib.hpp>
+#include <pelib/peloader.hpp>
 #include <pelib/pesection.hpp>
 #include <pelib/utils.hpp>
 #include <pelib/pereloc.hpp>

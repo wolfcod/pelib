@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <pelib/pelib.hpp>
+#include <pelib/peloader.hpp>
 #include <pelib/utils.hpp>
 #include <pelib/pesection.hpp>
 #include <pelib/peloadconfig.hpp>
